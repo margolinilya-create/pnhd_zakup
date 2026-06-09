@@ -7,11 +7,41 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  TECHNOLOGIST
+  PURCHASER
+  OPERATOR
+  ANALYST
+}
+
+enum CanonicalUnit {
+  kg
+  m
+}
+
+enum PriceCurrency {
+  RUB
+  USD
+}
+
+enum ComponentRole {
+  MAIN
+  RIB
+  TRIM
+  OTHER
+}
+
+enum OrderMode {
+  TEST
+  ORDER
+}
+
 model User {
   id           String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
   email        String        @unique
   passwordHash String        @map("password_hash")
   displayName  String?       @map("display_name")
+  role         UserRole      @default(PURCHASER)
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
   sessions     AuthSession[]
@@ -34,4 +64,173 @@ model AuthSession {
   @@index([userId], map: "auth_sessions_user_id_idx")
   @@index([expiresAt], map: "auth_sessions_expires_at_idx")
   @@map("auth_sessions")
+}
+
+// --- Procurement domain (specs/tz-calculator.md §5) ---
+
+model Fabric {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code            String        @unique
+  name            String
+  category        String
+  composition     String?
+  canonicalUnit   CanonicalUnit @default(kg) @map("canonical_unit")
+  densityGsm      Int           @map("density_gsm")
+  widthCm         Int           @map("width_cm")
+  isDefaultWidth  Boolean       @default(true) @map("is_default_width")
+  preShrink       Float         @map("pre_shrink")
+  isDefaultShrink Boolean       @default(true) @map("is_default_shrink")
+  rollSize        Float         @map("roll_size")
+  rollUnit        CanonicalUnit @default(kg) @map("roll_unit")
+  status          String        @default("active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  supplierFabrics SupplierFabric[]
+  allowedIn       ComponentAllowedFabric[]
+  facts           ActualFact[]
+
+  @@map("fabrics")
+}
+
+model Supplier {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code            String   @unique
+  name            String
+  country         String?
+  leadTimeDays    Int?     @map("lead_time_days")
+  reliabilityNote String?  @map("reliability_note")
+  status          String   @default("active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  supplierFabrics SupplierFabric[]
+
+  @@map("suppliers")
+}
+
+model SupplierFabric {
+  id           String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  supplierId   String        @db.Uuid @map("supplier_id")
+  fabricId     String        @db.Uuid @map("fabric_id")
+  priceRub     Float?        @map("price_rub")
+  priceUsd     Float?        @map("price_usd")
+  priceUnit    CanonicalUnit @default(kg) @map("price_unit")
+  rollSize     Float?        @map("roll_size")
+  leadTimeDays Int?          @map("lead_time_days")
+  status       String        @default("active")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, map: "supplier_fabrics_supplier_id_fkey")
+  fabric   Fabric   @relation(fields: [fabricId], references: [id], onDelete: Cascade, map: "supplier_fabrics_fabric_id_fkey")
+
+  @@unique([supplierId, fabricId], map: "supplier_fabrics_supplier_fabric_key")
+  @@index([fabricId], map: "supplier_fabrics_fabric_id_idx")
+  @@map("supplier_fabrics")
+}
+
+model Sku {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code      String   @unique
+  name      String
+  category  String
+  fit       String?
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  passport ProductPassport?
+  orders   Order[]
+
+  @@map("skus")
+}
+
+model ProductPassport {
+  id               String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  skuId            String   @unique @db.Uuid @map("sku_id")
+  baseSize         String   @default("M") @map("base_size")
+  sizeCoefficients Json     @map("size_coefficients")
+  version          Int      @default(1)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  sku        Sku                 @relation(fields: [skuId], references: [id], onDelete: Cascade, map: "product_passports_sku_id_fkey")
+  components PassportComponent[]
+
+  @@map("product_passports")
+}
+
+model PassportComponent {
+  id             String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  passportId     String        @db.Uuid @map("passport_id")
+  role           ComponentRole @default(MAIN)
+  normBase       Float         @map("norm_base")
+  normBaseMeters Float?        @map("norm_base_meters")
+  lossCut        Float         @default(0.05) @map("loss_cut")
+  lossSew        Float         @default(0.02) @map("loss_sew")
+  status         String        @default("active")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  passport       ProductPassport          @relation(fields: [passportId], references: [id], onDelete: Cascade, map: "passport_components_passport_id_fkey")
+  allowedFabrics ComponentAllowedFabric[]
+
+  @@index([passportId], map: "passport_components_passport_id_idx")
+  @@map("passport_components")
+}
+
+model ComponentAllowedFabric {
+  componentId String @db.Uuid @map("component_id")
+  fabricId    String @db.Uuid @map("fabric_id")
+
+  component PassportComponent @relation(fields: [componentId], references: [id], onDelete: Cascade, map: "component_allowed_fabrics_component_id_fkey")
+  fabric    Fabric            @relation(fields: [fabricId], references: [id], onDelete: Cascade, map: "component_allowed_fabrics_fabric_id_fkey")
+
+  @@id([componentId, fabricId])
+  @@index([fabricId], map: "component_allowed_fabrics_fabric_id_idx")
+  @@map("component_allowed_fabrics")
+}
+
+model Order {
+  id                 String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  mode               OrderMode     @default(TEST)
+  skuId              String        @db.Uuid @map("sku_id")
+  sizeBreakdown      Json          @map("size_breakdown")
+  componentFabricMap Json          @map("component_fabric_map")
+  fxRate             Float         @map("fx_rate")
+  reservePct         Float         @map("reserve_pct")
+  priceCurrency      PriceCurrency @default(RUB) @map("price_currency")
+  inputSnapshot      Json          @map("input_snapshot")
+  result             Json
+  createdById        String?       @db.Uuid @map("created_by_id")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  sku   Sku          @relation(fields: [skuId], references: [id], map: "orders_sku_id_fkey")
+  facts ActualFact[]
+
+  @@index([skuId], map: "orders_sku_id_idx")
+  @@map("orders")
+}
+
+model ActualFact {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orderId        String   @db.Uuid @map("order_id")
+  fabricId       String   @db.Uuid @map("fabric_id")
+  actualConsumed Float    @map("actual_consumed")
+  wasteFabric    Float    @default(0) @map("waste_fabric")
+  wasteSewing    Float    @default(0) @map("waste_sewing")
+  wasteNatural   Float    @default(0) @map("waste_natural")
+  producedQty    Int      @map("produced_qty")
+  enteredById    String?  @db.Uuid @map("entered_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade, map: "actual_facts_order_id_fkey")
+  fabric Fabric @relation(fields: [fabricId], references: [id], map: "actual_facts_fabric_id_fkey")
+
+  @@index([orderId], map: "actual_facts_order_id_idx")
+  @@index([fabricId], map: "actual_facts_fabric_id_idx")
+  @@map("actual_facts")
 }

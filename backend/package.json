@@ -17,6 +17,7 @@
     "test:integration": "bun scripts/test-integration.mjs",
     "smoke:docker": "bun scripts/docker-smoke.mjs",
     "prisma": "prisma",
+    "prisma:seed": "bun prisma/seed.ts",
     "prisma:generate": "bun scripts/prisma-generate.mjs",
     "prisma:generate:raw": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
