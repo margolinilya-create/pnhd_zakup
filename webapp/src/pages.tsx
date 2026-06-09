@@ -28,6 +28,11 @@ export function RootLayout() {
                 Заказы
               </Link>
             </Typography>
+            <Typography asChild variant="control" tone="muted">
+              <Link to="/admin/fabrics" className={navLinkClass}>
+                Справочники
+              </Link>
+            </Typography>
           </nav>
         </div>
       </header>
