@@ -1,7 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd .. && bun install",
-  "buildCommand": "bun run prisma:generate:raw",
+  "buildCommand": "bun run prisma:generate:raw && mkdir -p public && echo \"pnhd-zakup API\" > public/index.html",
+  "outputDirectory": "public",
   "functions": {
     "api/[...path].ts": {
       "maxDuration": 30
