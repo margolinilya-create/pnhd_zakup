@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd .. && bun install",
+  "buildCommand": "bun run prisma:generate:raw",
+  "functions": {
+    "api/[...path].ts": {
+      "maxDuration": 30
+    }
+  }
+}

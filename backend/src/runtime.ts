@@ -9,7 +9,9 @@ export type BackendRuntime = {
   close: () => Promise<void>
 }
 
-export function createBackendRuntime(source: Record<string, string | undefined> = Bun.env): BackendRuntime {
+export function createBackendRuntime(
+  source: Record<string, string | undefined> = process.env,
+): BackendRuntime {
   const env = loadEnv(source)
   const prisma = createPrisma(env.DATABASE_URL)
   let closed = false
