@@ -2,18 +2,25 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 
+import type { UserDto } from '@web-app-demo/contracts'
+
 import type { DbClient } from './db'
 import type { AppEnv } from './env'
 import { createAuthRoutes } from './auth/routes'
 import { AuthService } from './auth/service'
 import { errorResponse, handleError, validationErrorHook } from './http/errors'
+import { createProcurementRoutes } from './procurement/routes'
+import { ProcurementService } from './procurement/service'
 import { createStorageServiceFromEnv, type StorageService } from './storage/service'
 
 type AppBindings = {
   Variables: {
     authService: AuthService
+    procurementService: ProcurementService
     env: AppEnv
     storageService: StorageService | null
+    userId: string
+    authUser: UserDto
   }
 }
 
@@ -24,6 +31,7 @@ type CreateAppOptions = {
 
 export function createApp({ env, prisma }: CreateAppOptions) {
   const authService = new AuthService(prisma, env)
+  const procurementService = new ProcurementService(prisma)
   const storageService = createStorageServiceFromEnv(env)
   const app = new OpenAPIHono<AppBindings>({
     defaultHook: validationErrorHook,
@@ -45,6 +53,7 @@ export function createApp({ env, prisma }: CreateAppOptions) {
   )
   app.use('*', async (c, next) => {
     c.set('authService', authService)
+    c.set('procurementService', procurementService)
     c.set('env', env)
     c.set('storageService', storageService)
     await next()
@@ -64,6 +73,7 @@ export function createApp({ env, prisma }: CreateAppOptions) {
   })
 
   app.route('/api/auth', createAuthRoutes())
+  app.route('/api', createProcurementRoutes())
 
   app.doc('/openapi.json', {
     openapi: '3.0.0',
