@@ -4,14 +4,23 @@ import {
   type CalcRefs,
   type CalcResult,
   type FabricDto,
+  type FabricInput,
+  type FabricUpdate,
   type FactDto,
   type OrderDto,
   type OrderMode,
   type OrderSummaryDto,
   type PassportDto,
+  type PassportInput,
   type SkuDto,
+  type SkuInput,
+  type SkuUpdate,
   type SupplierDto,
   type SupplierFabricDto,
+  type SupplierFabricInput,
+  type SupplierFabricUpdate,
+  type SupplierInput,
+  type SupplierUpdate,
 } from '@web-app-demo/contracts'
 
 import type { Prisma } from '../generated/prisma/client'
@@ -217,6 +226,165 @@ export class ProcurementService {
     })
 
     return this.getOrder(orderId)
+  }
+
+  // --- Reference writes (admin) ---
+
+  async createFabric(data: FabricInput): Promise<FabricDto> {
+    const row = await this.db.fabric
+      .create({
+        data: {
+          code: data.code, name: data.name, category: data.category, composition: data.composition ?? null,
+          canonicalUnit: data.canonicalUnit, densityGsm: data.densityGsm, widthCm: data.widthCm,
+          isDefaultWidth: data.isDefaultWidth, preShrink: data.preShrink, isDefaultShrink: data.isDefaultShrink,
+          rollSize: data.rollSize, rollUnit: data.rollUnit,
+        },
+      })
+      .catch(rethrowUnique('Ткань с таким кодом'))
+    return toFabricDto(row)
+  }
+
+  async updateFabric(id: string, data: FabricUpdate): Promise<FabricDto> {
+    await this.requireExists('fabric', id)
+    const row = await this.db.fabric
+      .update({
+        where: { id },
+        data: {
+          code: data.code, name: data.name, category: data.category, composition: data.composition,
+          canonicalUnit: data.canonicalUnit, densityGsm: data.densityGsm, widthCm: data.widthCm,
+          isDefaultWidth: data.isDefaultWidth, preShrink: data.preShrink, isDefaultShrink: data.isDefaultShrink,
+          rollSize: data.rollSize, rollUnit: data.rollUnit,
+        },
+      })
+      .catch(rethrowUnique('Ткань с таким кодом'))
+    return toFabricDto(row)
+  }
+
+  async deleteFabric(id: string): Promise<void> {
+    await this.requireExists('fabric', id)
+    await this.db.fabric.update({ where: { id }, data: { status: 'inactive' } })
+  }
+
+  async createSupplier(data: SupplierInput): Promise<SupplierDto> {
+    const row = await this.db.supplier
+      .create({ data: { code: data.code, name: data.name, country: data.country ?? null, leadTimeDays: data.leadTimeDays ?? null } })
+      .catch(rethrowUnique('Поставщик с таким кодом'))
+    return toSupplierDto(row)
+  }
+
+  async updateSupplier(id: string, data: SupplierUpdate): Promise<SupplierDto> {
+    await this.requireExists('supplier', id)
+    const row = await this.db.supplier
+      .update({ where: { id }, data: { code: data.code, name: data.name, country: data.country, leadTimeDays: data.leadTimeDays } })
+      .catch(rethrowUnique('Поставщик с таким кодом'))
+    return toSupplierDto(row)
+  }
+
+  async deleteSupplier(id: string): Promise<void> {
+    await this.requireExists('supplier', id)
+    await this.db.supplier.update({ where: { id }, data: { status: 'inactive' } })
+  }
+
+  // Upsert by the (supplier, fabric) edge so the UI can add or re-price in one call.
+  async upsertSupplierFabric(data: SupplierFabricInput): Promise<SupplierFabricDto> {
+    const row = await this.db.supplierFabric.upsert({
+      where: { supplierId_fabricId: { supplierId: data.supplierId, fabricId: data.fabricId } },
+      create: {
+        supplierId: data.supplierId, fabricId: data.fabricId, priceRub: data.priceRub ?? null,
+        priceUsd: data.priceUsd ?? null, priceUnit: data.priceUnit, rollSize: data.rollSize ?? null, status: 'active',
+      },
+      update: {
+        priceRub: data.priceRub ?? null, priceUsd: data.priceUsd ?? null, priceUnit: data.priceUnit,
+        rollSize: data.rollSize ?? null, status: 'active',
+      },
+    })
+    return toSupplierFabricDto(row)
+  }
+
+  async updateSupplierFabric(id: string, data: SupplierFabricUpdate): Promise<SupplierFabricDto> {
+    await this.requireExists('supplierFabric', id)
+    const row = await this.db.supplierFabric.update({
+      where: { id },
+      data: { priceRub: data.priceRub, priceUsd: data.priceUsd, priceUnit: data.priceUnit, rollSize: data.rollSize },
+    })
+    return toSupplierFabricDto(row)
+  }
+
+  async deleteSupplierFabric(id: string): Promise<void> {
+    await this.requireExists('supplierFabric', id)
+    await this.db.supplierFabric.update({ where: { id }, data: { status: 'inactive' } })
+  }
+
+  async createSku(data: SkuInput): Promise<SkuDto> {
+    const row = await this.db.sku
+      .create({ data: { code: data.code, name: data.name, category: data.category, fit: data.fit ?? null } })
+      .catch(rethrowUnique('SKU с таким кодом'))
+    return this.getSku(row.id)
+  }
+
+  async updateSku(id: string, data: SkuUpdate): Promise<SkuDto> {
+    await this.requireExists('sku', id)
+    await this.db.sku
+      .update({ where: { id }, data: { code: data.code, name: data.name, category: data.category, fit: data.fit } })
+      .catch(rethrowUnique('SKU с таким кодом'))
+    return this.getSku(id)
+  }
+
+  async deleteSku(id: string): Promise<void> {
+    await this.requireExists('sku', id)
+    await this.db.sku.update({ where: { id }, data: { status: 'inactive' } })
+  }
+
+  async getSku(id: string): Promise<SkuDto> {
+    const row = await this.db.sku.findUnique({
+      where: { id },
+      include: { passport: { include: { components: { include: { allowedFabrics: true } } } } },
+    })
+    if (!row) throw new AppError(404, 'NOT_FOUND', 'SKU not found')
+    return toSkuDto(row)
+  }
+
+  // Replace the SKU's passport (size coefficients + components + allowed fabrics).
+  async upsertPassport(skuId: string, data: PassportInput): Promise<SkuDto> {
+    await this.requireExists('sku', skuId)
+    const passport = await this.db.productPassport.upsert({
+      where: { skuId },
+      create: { skuId, baseSize: data.baseSize, sizeCoefficients: asJson(data.sizeCoefficients), version: 1 },
+      update: { baseSize: data.baseSize, sizeCoefficients: asJson(data.sizeCoefficients), version: { increment: 1 } },
+    })
+    await this.db.passportComponent.deleteMany({ where: { passportId: passport.id } })
+    for (const c of data.components) {
+      const component = await this.db.passportComponent.create({
+        data: {
+          passportId: passport.id, role: c.role, normBase: c.normBase,
+          normBaseMeters: c.normBaseMeters ?? null, lossCut: c.lossCut, lossSew: c.lossSew,
+        },
+      })
+      if (c.allowedFabricIds.length > 0) {
+        await this.db.componentAllowedFabric.createMany({
+          data: c.allowedFabricIds.map((fabricId) => ({ componentId: component.id, fabricId })),
+        })
+      }
+    }
+    return this.getSku(skuId)
+  }
+
+  private async requireExists(model: 'fabric' | 'supplier' | 'supplierFabric' | 'sku', id: string): Promise<void> {
+    const found =
+      model === 'fabric' ? await this.db.fabric.findUnique({ where: { id } })
+      : model === 'supplier' ? await this.db.supplier.findUnique({ where: { id } })
+      : model === 'supplierFabric' ? await this.db.supplierFabric.findUnique({ where: { id } })
+      : await this.db.sku.findUnique({ where: { id } })
+    if (!found) throw new AppError(404, 'NOT_FOUND', `${model} ${id} not found`)
+  }
+}
+
+function rethrowUnique(label: string) {
+  return (error: unknown): never => {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'P2002') {
+      throw new AppError(409, 'CONFLICT', `${label} уже существует`)
+    }
+    throw error
   }
 }
 

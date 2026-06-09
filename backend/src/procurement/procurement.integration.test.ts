@@ -169,4 +169,50 @@ maybeDescribe('procurement API integration', () => {
     })
     expect(res.status).toBe(400)
   })
+
+  test('fabric: create, update, soft-delete (drops from list)', async () => {
+    const created = await authed('/api/fabrics', {
+      method: 'POST',
+      body: JSON.stringify({ code: 'FABX', name: 'Тест', category: 'Кулирка', canonicalUnit: 'kg', densityGsm: 200, widthCm: 180, preShrink: 0.05, rollSize: 25, rollUnit: 'kg' }),
+    })
+    expect(created.status).toBe(201)
+    const { fabric } = (await created.json()) as { fabric: { id: string; code: string } }
+    expect(fabric.code).toBe('FABX')
+
+    const upd = await authed(`/api/fabrics/${fabric.id}`, { method: 'PUT', body: JSON.stringify({ name: 'Тест 2' }) })
+    expect(upd.status).toBe(200)
+    expect(((await upd.json()) as { fabric: { name: string } }).fabric.name).toBe('Тест 2')
+
+    const del = await authed(`/api/fabrics/${fabric.id}`, { method: 'DELETE' })
+    expect(del.status).toBe(204)
+    const list = (await (await authed('/api/fabrics')).json()) as { fabrics: Array<{ id: string }> }
+    expect(list.fabrics.some((f) => f.id === fabric.id)).toBe(false)
+  })
+
+  test('duplicate fabric code returns 409', async () => {
+    const body = JSON.stringify({ code: 'DUP', name: 'A', category: 'X', densityGsm: 200, widthCm: 180, preShrink: 0.05, rollSize: 25 })
+    expect((await authed('/api/fabrics', { method: 'POST', body })).status).toBe(201)
+    expect((await authed('/api/fabrics', { method: 'POST', body })).status).toBe(409)
+  })
+
+  test('create SKU + upsert passport with a component', async () => {
+    const skuRes = await authed('/api/skus', { method: 'POST', body: JSON.stringify({ code: 'SKUX', name: 'Новое', category: 'Худи' }) })
+    expect(skuRes.status).toBe(201)
+    const { sku } = (await skuRes.json()) as { sku: { id: string } }
+    const pRes = await authed(`/api/skus/${sku.id}/passport`, {
+      method: 'PUT',
+      body: JSON.stringify({ baseSize: 'M', sizeCoefficients: { M: 1.0, L: 1.09 }, components: [{ role: 'MAIN', normBase: 0.7, lossCut: 0.05, lossSew: 0.02, allowedFabricIds: [footerId] }] }),
+    })
+    expect(pRes.status).toBe(200)
+    const updated = (await pRes.json()) as { sku: { passport: { components: Array<{ allowedFabricIds: string[] }> } | null } }
+    expect(updated.sku.passport?.components).toHaveLength(1)
+    expect(updated.sku.passport?.components[0].allowedFabricIds).toContain(footerId)
+  })
+
+  test('upsert supplier-fabric price edge', async () => {
+    const sup = (await (await authed('/api/suppliers', { method: 'POST', body: JSON.stringify({ code: 'SUPX', name: 'Новый', country: 'RU' }) })).json()) as { supplier: { id: string } }
+    const edge = await authed('/api/supplier-fabrics', { method: 'POST', body: JSON.stringify({ supplierId: sup.supplier.id, fabricId: footerId, priceRub: 500, priceUnit: 'kg' }) })
+    expect(edge.status).toBe(201)
+    expect(((await edge.json()) as { supplierFabric: { priceRub: number } }).supplierFabric.priceRub).toBe(500)
+  })
 })

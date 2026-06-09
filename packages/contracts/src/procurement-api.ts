@@ -89,6 +89,12 @@ export const supplierFabricsResponseSchema = z.object({
 })
 export const skusResponseSchema = z.object({ skus: z.array(skuDtoSchema) })
 
+// single-entity write responses
+export const fabricResponseSchema = z.object({ fabric: fabricDtoSchema })
+export const supplierResponseSchema = z.object({ supplier: supplierDtoSchema })
+export const supplierFabricResponseSchema = z.object({ supplierFabric: supplierFabricDtoSchema })
+export const skuResponseSchema = z.object({ sku: skuDtoSchema })
+
 // --- Calc ---
 // Request body is the engine CalcInput; the backend builds the refs snapshot from the DB.
 export const calcRequestSchema = calcInputSchema
@@ -153,6 +159,79 @@ export const orderDtoSchema = z.object({
 
 export const ordersResponseSchema = z.object({ orders: z.array(orderSummaryDtoSchema) })
 export const orderResponseSchema = z.object({ order: orderDtoSchema })
+
+// --- Write inputs (reference editing) ---
+
+export const fabricInputSchema = z.object({
+  code: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  category: z.string().trim().min(1),
+  composition: z.string().trim().nullish(),
+  canonicalUnit: canonicalUnitSchema.default('kg'),
+  densityGsm: z.number().int().positive(),
+  widthCm: z.number().int().positive(),
+  isDefaultWidth: z.boolean().default(false),
+  preShrink: z.number().min(0).max(1),
+  isDefaultShrink: z.boolean().default(false),
+  rollSize: z.number().positive(),
+  rollUnit: canonicalUnitSchema.default('kg'),
+})
+export const fabricUpdateSchema = fabricInputSchema.partial()
+
+export const supplierInputSchema = z.object({
+  code: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  country: z.string().trim().nullish(),
+  leadTimeDays: z.number().int().nonnegative().nullish(),
+})
+export const supplierUpdateSchema = supplierInputSchema.partial()
+
+export const supplierFabricInputSchema = z.object({
+  supplierId: z.string().min(1),
+  fabricId: z.string().min(1),
+  priceRub: z.number().nonnegative().nullish(),
+  priceUsd: z.number().nonnegative().nullish(),
+  priceUnit: canonicalUnitSchema.default('kg'),
+  rollSize: z.number().positive().nullish(),
+})
+export const supplierFabricUpdateSchema = z.object({
+  priceRub: z.number().nonnegative().nullish(),
+  priceUsd: z.number().nonnegative().nullish(),
+  priceUnit: canonicalUnitSchema.optional(),
+  rollSize: z.number().positive().nullish(),
+})
+
+export const skuInputSchema = z.object({
+  code: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  category: z.string().trim().min(1),
+  fit: z.string().trim().nullish(),
+})
+export const skuUpdateSchema = skuInputSchema.partial()
+
+export const passportComponentInputSchema = z.object({
+  role: componentRoleSchema,
+  normBase: z.number().nonnegative(),
+  normBaseMeters: z.number().nonnegative().nullish(),
+  lossCut: z.number().min(0).max(1),
+  lossSew: z.number().min(0).max(1),
+  allowedFabricIds: z.array(z.string()).min(1),
+})
+export const passportInputSchema = z.object({
+  baseSize: z.string().trim().min(1).default('M'),
+  sizeCoefficients: z.record(z.string(), z.number().positive()),
+  components: z.array(passportComponentInputSchema).min(1),
+})
+
+export type FabricInput = z.input<typeof fabricInputSchema>
+export type FabricUpdate = z.input<typeof fabricUpdateSchema>
+export type SupplierInput = z.input<typeof supplierInputSchema>
+export type SupplierUpdate = z.input<typeof supplierUpdateSchema>
+export type SupplierFabricInput = z.input<typeof supplierFabricInputSchema>
+export type SupplierFabricUpdate = z.input<typeof supplierFabricUpdateSchema>
+export type SkuInput = z.input<typeof skuInputSchema>
+export type SkuUpdate = z.input<typeof skuUpdateSchema>
+export type PassportInput = z.input<typeof passportInputSchema>
 
 export type FabricDto = z.infer<typeof fabricDtoSchema>
 export type SupplierDto = z.infer<typeof supplierDtoSchema>

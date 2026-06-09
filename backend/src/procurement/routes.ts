@@ -1,4 +1,17 @@
-import { addFactRequestSchema, calcRequestSchema, createOrderRequestSchema } from '@web-app-demo/contracts'
+import {
+  addFactRequestSchema,
+  calcRequestSchema,
+  createOrderRequestSchema,
+  fabricInputSchema,
+  fabricUpdateSchema,
+  passportInputSchema,
+  skuInputSchema,
+  skuUpdateSchema,
+  supplierFabricInputSchema,
+  supplierFabricUpdateSchema,
+  supplierInputSchema,
+  supplierUpdateSchema,
+} from '@web-app-demo/contracts'
 import { Hono } from 'hono'
 
 import type { AppEnv } from '../env'
@@ -50,6 +63,63 @@ export function createProcurementRoutes() {
     const body = addFactRequestSchema.parse(await c.req.json())
     const order = await c.get('procurementService').addFacts(c.req.param('id'), body.facts)
     return c.json({ order }, 201)
+  })
+
+  // --- Reference writes (admin; soft-delete) ---
+  routes.post('/fabrics', async (c) => {
+    const fabric = await c.get('procurementService').createFabric(fabricInputSchema.parse(await c.req.json()))
+    return c.json({ fabric }, 201)
+  })
+  routes.put('/fabrics/:id', async (c) => {
+    const fabric = await c.get('procurementService').updateFabric(c.req.param('id'), fabricUpdateSchema.parse(await c.req.json()))
+    return c.json({ fabric })
+  })
+  routes.delete('/fabrics/:id', async (c) => {
+    await c.get('procurementService').deleteFabric(c.req.param('id'))
+    return c.body(null, 204)
+  })
+
+  routes.post('/suppliers', async (c) => {
+    const supplier = await c.get('procurementService').createSupplier(supplierInputSchema.parse(await c.req.json()))
+    return c.json({ supplier }, 201)
+  })
+  routes.put('/suppliers/:id', async (c) => {
+    const supplier = await c.get('procurementService').updateSupplier(c.req.param('id'), supplierUpdateSchema.parse(await c.req.json()))
+    return c.json({ supplier })
+  })
+  routes.delete('/suppliers/:id', async (c) => {
+    await c.get('procurementService').deleteSupplier(c.req.param('id'))
+    return c.body(null, 204)
+  })
+
+  routes.post('/supplier-fabrics', async (c) => {
+    const supplierFabric = await c.get('procurementService').upsertSupplierFabric(supplierFabricInputSchema.parse(await c.req.json()))
+    return c.json({ supplierFabric }, 201)
+  })
+  routes.put('/supplier-fabrics/:id', async (c) => {
+    const supplierFabric = await c.get('procurementService').updateSupplierFabric(c.req.param('id'), supplierFabricUpdateSchema.parse(await c.req.json()))
+    return c.json({ supplierFabric })
+  })
+  routes.delete('/supplier-fabrics/:id', async (c) => {
+    await c.get('procurementService').deleteSupplierFabric(c.req.param('id'))
+    return c.body(null, 204)
+  })
+
+  routes.post('/skus', async (c) => {
+    const sku = await c.get('procurementService').createSku(skuInputSchema.parse(await c.req.json()))
+    return c.json({ sku }, 201)
+  })
+  routes.put('/skus/:id', async (c) => {
+    const sku = await c.get('procurementService').updateSku(c.req.param('id'), skuUpdateSchema.parse(await c.req.json()))
+    return c.json({ sku })
+  })
+  routes.delete('/skus/:id', async (c) => {
+    await c.get('procurementService').deleteSku(c.req.param('id'))
+    return c.body(null, 204)
+  })
+  routes.put('/skus/:id/passport', async (c) => {
+    const sku = await c.get('procurementService').upsertPassport(c.req.param('id'), passportInputSchema.parse(await c.req.json()))
+    return c.json({ sku })
   })
 
   return routes

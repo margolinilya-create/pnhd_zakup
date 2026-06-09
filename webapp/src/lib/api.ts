@@ -11,11 +11,15 @@ import {
   calcRequestSchema,
   calcResponseSchema,
   createOrderRequestSchema,
+  fabricResponseSchema,
   fabricsResponseSchema,
   orderResponseSchema,
   ordersResponseSchema,
+  skuResponseSchema,
   skusResponseSchema,
+  supplierFabricResponseSchema,
   supplierFabricsResponseSchema,
+  supplierResponseSchema,
   suppliersResponseSchema,
   type AddFactRequest,
   type AuthResponse,
@@ -23,17 +27,25 @@ import {
   type CalcResult,
   type CreateOrderRequest,
   type FabricDto,
+  type FabricInput,
+  type FabricUpdate,
   type LoginRequest,
   type LogoutRequest,
   type MeResponse,
   type OrderDto,
   type OrderSummaryDto,
+  type PassportInput,
   type RefreshRequest,
   type RefreshResponse,
   type RegisterRequest,
   type SkuDto,
+  type SkuInput,
+  type SkuUpdate,
   type SupplierDto,
   type SupplierFabricDto,
+  type SupplierFabricInput,
+  type SupplierInput,
+  type SupplierUpdate,
 } from '@web-app-demo/contracts'
 import type { z } from 'zod'
 
@@ -46,7 +58,7 @@ type ApiClientOptions = {
 }
 
 type RequestOptions = {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   auth?: boolean
   retryOnUnauthorized?: boolean
@@ -155,6 +167,47 @@ export class ApiClient {
       body: payload,
       auth: true,
     }).then((r) => r.order)
+  }
+
+  // --- Reference writes ---
+  createFabric(input: FabricInput): Promise<FabricDto> {
+    return this.request('/api/fabrics', fabricResponseSchema, { method: 'POST', body: input, auth: true }).then((r) => r.fabric)
+  }
+  updateFabric(id: string, input: FabricUpdate): Promise<FabricDto> {
+    return this.request(`/api/fabrics/${id}`, fabricResponseSchema, { method: 'PUT', body: input, auth: true }).then((r) => r.fabric)
+  }
+  async deleteFabric(id: string): Promise<void> {
+    await this.rawRequest(`/api/fabrics/${id}`, { method: 'DELETE', auth: true })
+  }
+
+  createSupplier(input: SupplierInput): Promise<SupplierDto> {
+    return this.request('/api/suppliers', supplierResponseSchema, { method: 'POST', body: input, auth: true }).then((r) => r.supplier)
+  }
+  updateSupplier(id: string, input: SupplierUpdate): Promise<SupplierDto> {
+    return this.request(`/api/suppliers/${id}`, supplierResponseSchema, { method: 'PUT', body: input, auth: true }).then((r) => r.supplier)
+  }
+  async deleteSupplier(id: string): Promise<void> {
+    await this.rawRequest(`/api/suppliers/${id}`, { method: 'DELETE', auth: true })
+  }
+
+  upsertSupplierFabric(input: SupplierFabricInput): Promise<SupplierFabricDto> {
+    return this.request('/api/supplier-fabrics', supplierFabricResponseSchema, { method: 'POST', body: input, auth: true }).then((r) => r.supplierFabric)
+  }
+  async deleteSupplierFabric(id: string): Promise<void> {
+    await this.rawRequest(`/api/supplier-fabrics/${id}`, { method: 'DELETE', auth: true })
+  }
+
+  createSku(input: SkuInput): Promise<SkuDto> {
+    return this.request('/api/skus', skuResponseSchema, { method: 'POST', body: input, auth: true }).then((r) => r.sku)
+  }
+  updateSku(id: string, input: SkuUpdate): Promise<SkuDto> {
+    return this.request(`/api/skus/${id}`, skuResponseSchema, { method: 'PUT', body: input, auth: true }).then((r) => r.sku)
+  }
+  async deleteSku(id: string): Promise<void> {
+    await this.rawRequest(`/api/skus/${id}`, { method: 'DELETE', auth: true })
+  }
+  upsertPassport(skuId: string, input: PassportInput): Promise<SkuDto> {
+    return this.request(`/api/skus/${skuId}/passport`, skuResponseSchema, { method: 'PUT', body: input, auth: true }).then((r) => r.sku)
   }
 
   async logout(input: LogoutRequest = {}) {
