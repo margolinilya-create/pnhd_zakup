@@ -3,8 +3,9 @@
   "installCommand": "cd .. && bun install",
   "buildCommand": "bun run prisma:generate:raw && bun build src/server-entry.ts --target=node --format=esm --outfile=src/_server-bundle.mjs && mkdir -p public && echo \"pnhd-zakup API\" > public/index.html",
   "outputDirectory": "public",
+  "rewrites": [{ "source": "/api/(.*)", "destination": "/api" }],
   "functions": {
-    "api/[...path].ts": {
+    "api/index.ts": {
       "maxDuration": 30
     }
   }
