@@ -62,7 +62,7 @@ export const componentSelectionSchema = z.object({
 export const calcInputSchema = z.object({
   skuId: z.string(),
   sizeBreakdown: z.record(z.string(), z.number().int().nonnegative()),
-  componentSelections: z.array(componentSelectionSchema).min(1),
+  componentSelections: z.array(componentSelectionSchema).min(1).max(100),
   reservePct: z.number().min(0),
   currency: priceCurrencySchema,
   fxRate: z.number().positive(), // USD->RUB; use 1 for RUB

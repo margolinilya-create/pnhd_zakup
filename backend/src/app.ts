@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { bodyLimit } from 'hono/body-limit'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 
@@ -38,6 +39,8 @@ export function createApp({ env, prisma }: CreateAppOptions) {
   })
 
   app.use(secureHeaders())
+  // Cap request bodies (the API is public in the demo) to bound bulk writes.
+  app.use('*', bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json(errorResponse('BAD_REQUEST', 'Request body too large'), 413) }))
   app.use(
     '*',
     cors({

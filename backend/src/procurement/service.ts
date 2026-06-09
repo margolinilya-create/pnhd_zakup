@@ -82,13 +82,14 @@ export class ProcurementService {
       fabricIds.add(sel.fabricId)
     }
 
-    const fabricRows = await this.db.fabric.findMany({ where: { id: { in: [...fabricIds] } } })
+    const fabricRows = await this.db.fabric.findMany({ where: { id: { in: [...fabricIds] }, status: 'active' } })
     if (fabricRows.length !== fabricIds.size) {
-      throw new AppError(400, 'VALIDATION_ERROR', 'One or more selected fabrics were not found')
+      throw new AppError(400, 'VALIDATION_ERROR', 'One or more selected fabrics were not found or are inactive')
     }
 
     const supplierFabricRows = await this.db.supplierFabric.findMany({
       where: {
+        status: 'active',
         OR: input.componentSelections.map((s) => ({ supplierId: s.supplierId, fabricId: s.fabricId })),
       },
     })
@@ -345,27 +346,30 @@ export class ProcurementService {
   }
 
   // Replace the SKU's passport (size coefficients + components + allowed fabrics).
+  // Atomic: the upsert + wipe + component rebuild run in one transaction, so a
+  // mid-rebuild failure (e.g. a bad allowed-fabric FK) rolls back instead of
+  // leaving the passport with a truncated component set.
   async upsertPassport(skuId: string, data: PassportInput): Promise<SkuDto> {
     await this.requireExists('sku', skuId)
-    const passport = await this.db.productPassport.upsert({
-      where: { skuId },
-      create: { skuId, baseSize: data.baseSize, sizeCoefficients: asJson(data.sizeCoefficients), version: 1 },
-      update: { baseSize: data.baseSize, sizeCoefficients: asJson(data.sizeCoefficients), version: { increment: 1 } },
-    })
-    await this.db.passportComponent.deleteMany({ where: { passportId: passport.id } })
-    for (const c of data.components) {
-      const component = await this.db.passportComponent.create({
-        data: {
-          passportId: passport.id, role: c.role, normBase: c.normBase,
-          normBaseMeters: c.normBaseMeters ?? null, lossCut: c.lossCut, lossSew: c.lossSew,
-        },
+    await this.db.$transaction(async (tx) => {
+      const passport = await tx.productPassport.upsert({
+        where: { skuId },
+        create: { skuId, baseSize: data.baseSize, sizeCoefficients: asJson(data.sizeCoefficients), version: 1 },
+        update: { baseSize: data.baseSize, sizeCoefficients: asJson(data.sizeCoefficients), version: { increment: 1 } },
       })
-      if (c.allowedFabricIds.length > 0) {
-        await this.db.componentAllowedFabric.createMany({
+      await tx.passportComponent.deleteMany({ where: { passportId: passport.id } })
+      for (const c of data.components) {
+        const component = await tx.passportComponent.create({
+          data: {
+            passportId: passport.id, role: c.role, normBase: c.normBase,
+            normBaseMeters: c.normBaseMeters ?? null, lossCut: c.lossCut, lossSew: c.lossSew,
+          },
+        })
+        await tx.componentAllowedFabric.createMany({
           data: c.allowedFabricIds.map((fabricId) => ({ componentId: component.id, fabricId })),
         })
       }
-    }
+    })
     return this.getSku(skuId)
   }
 
@@ -457,10 +461,14 @@ function toOrderDto(order: {
   }>
 }): OrderDto {
   const result = order.result as unknown as CalcResult
-  const plannedByFabric = new Map(result.fabrics.map((f) => [f.fabricId, f.needKg]))
+  const byFabric = new Map(result.fabrics.map((f) => [f.fabricId, f]))
   const facts: FactDto[] = order.facts.map((f) => {
-    const plannedKg = plannedByFabric.get(f.fabricId) ?? null
-    const deviation = plannedKg && plannedKg > 0 ? f.actualConsumed / plannedKg - 1 : null
+    const planned = byFabric.get(f.fabricId)
+    const plannedKg = planned ? planned.needKg : null
+    // actualConsumed is in the fabric's canonical unit, so compare against the plan
+    // in that same unit (needM for 'm'-canonical fabrics, needKg for 'kg').
+    const planCanonical = planned ? (planned.canonicalUnit === 'm' ? planned.needM : planned.needKg) : null
+    const deviation = planCanonical && planCanonical > 0 ? f.actualConsumed / planCanonical - 1 : null
     return {
       id: f.id, fabricId: f.fabricId, actualConsumed: f.actualConsumed, wasteFabric: f.wasteFabric,
       wasteSewing: f.wasteSewing, wasteNatural: f.wasteNatural, producedQty: f.producedQty,

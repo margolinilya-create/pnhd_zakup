@@ -127,7 +127,7 @@ export const factEntrySchema = z.object({
 })
 
 export const addFactRequestSchema = z.object({
-  facts: z.array(factEntrySchema).min(1),
+  facts: z.array(factEntrySchema).min(1).max(500),
 })
 
 export const factDtoSchema = z.object({
@@ -215,12 +215,12 @@ export const passportComponentInputSchema = z.object({
   normBaseMeters: z.number().nonnegative().nullish(),
   lossCut: z.number().min(0).max(1),
   lossSew: z.number().min(0).max(1),
-  allowedFabricIds: z.array(z.string()).min(1),
+  allowedFabricIds: z.array(z.string()).min(1).max(100),
 })
 export const passportInputSchema = z.object({
   baseSize: z.string().trim().min(1).default('M'),
   sizeCoefficients: z.record(z.string(), z.number().positive()),
-  components: z.array(passportComponentInputSchema).min(1),
+  components: z.array(passportComponentInputSchema).min(1).max(50),
 })
 
 export type FabricInput = z.input<typeof fabricInputSchema>

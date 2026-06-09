@@ -215,4 +215,50 @@ maybeDescribe('procurement API integration', () => {
     expect(edge.status).toBe(201)
     expect(((await edge.json()) as { supplierFabric: { priceRub: number } }).supplierFabric.priceRub).toBe(500)
   })
+
+  // --- Phase 6 review fixes ---
+
+  test('order rejects a soft-deleted fabric (snapshot filters status=active)', async () => {
+    await authed(`/api/fabrics/${footerId}`, { method: 'DELETE' })
+    const res = await authed('/api/orders', { method: 'POST', body: JSON.stringify({ ...calcBody(), mode: 'ORDER' }) })
+    expect(res.status).toBe(400)
+  })
+
+  test('upsertPassport is atomic: a bad allowed-fabric id rolls back, leaving the prior passport intact', async () => {
+    const { sku } = (await (await authed('/api/skus', { method: 'POST', body: JSON.stringify({ code: 'SKUTX', name: 'Tx', category: 'Худи' }) })).json()) as { sku: { id: string } }
+    await authed(`/api/skus/${sku.id}/passport`, {
+      method: 'PUT',
+      body: JSON.stringify({ baseSize: 'M', sizeCoefficients: { M: 1 }, components: [{ role: 'MAIN', normBase: 0.5, lossCut: 0.05, lossSew: 0.02, allowedFabricIds: [footerId] }] }),
+    })
+    const bad = await authed(`/api/skus/${sku.id}/passport`, {
+      method: 'PUT',
+      body: JSON.stringify({ baseSize: 'M', sizeCoefficients: { M: 1, L: 1.1 }, components: [{ role: 'MAIN', normBase: 0.9, lossCut: 0.05, lossSew: 0.02, allowedFabricIds: ['00000000-0000-0000-0000-000000000000'] }] }),
+    })
+    expect(bad.status).toBeGreaterThanOrEqual(400)
+    const after = (await (await authed('/api/skus')).json()) as { skus: Array<{ id: string; passport: { components: Array<{ normBase: number; allowedFabricIds: string[] }> } | null }> }
+    const skuAfter = after.skus.find((s) => s.id === sku.id)!
+    expect(skuAfter.passport?.components).toHaveLength(1)
+    expect(skuAfter.passport?.components[0].normBase).toBe(0.5) // unchanged v1, not the failed v2 (0.9)
+    expect(skuAfter.passport?.components[0].allowedFabricIds).toEqual([footerId])
+  })
+
+  test("deviation for an 'm'-canonical fabric uses the meters plan, not kg", async () => {
+    const { fabric } = (await (await authed('/api/fabrics', { method: 'POST', body: JSON.stringify({ code: 'MFAB', name: 'Метровая', category: 'X', canonicalUnit: 'm', densityGsm: 200, widthCm: 150, preShrink: 0, rollSize: 50, rollUnit: 'm' }) })).json()) as { fabric: { id: string } }
+    await authed('/api/supplier-fabrics', { method: 'POST', body: JSON.stringify({ supplierId, fabricId: fabric.id, priceRub: 100, priceUnit: 'm' }) })
+    const { sku } = (await (await authed('/api/skus', { method: 'POST', body: JSON.stringify({ code: 'MSKU', name: 'M', category: 'X' }) })).json()) as { sku: { id: string } }
+    const built = (await (await authed(`/api/skus/${sku.id}/passport`, { method: 'PUT', body: JSON.stringify({ baseSize: 'M', sizeCoefficients: { M: 1 }, components: [{ role: 'MAIN', normBase: 1.0, lossCut: 0, lossSew: 0, allowedFabricIds: [fabric.id] }] }) })).json()) as { sku: { passport: { components: Array<{ id: string }> } } }
+    const componentId = built.sku.passport.components[0].id
+    const { order } = (await (await authed('/api/orders', { method: 'POST', body: JSON.stringify({ skuId: sku.id, sizeBreakdown: { M: 10 }, componentSelections: [{ componentId, fabricId: fabric.id, supplierId }], reservePct: 0, currency: 'RUB', fxRate: 1, mode: 'ORDER' }) })).json()) as { order: { id: string; result: { fabrics: Array<{ fabricId: string; needM: number }> } } }
+    const needM = order.result.fabrics.find((f) => f.fabricId === fabric.id)!.needM
+    const factRes = (await (await authed(`/api/orders/${order.id}/fact`, { method: 'POST', body: JSON.stringify({ facts: [{ fabricId: fabric.id, actualConsumed: needM * 1.1, producedQty: 10 }] }) })).json()) as { order: { facts: Array<{ fabricId: string; deviation: number | null }> } }
+    const fact = factRes.order.facts.find((f) => f.fabricId === fabric.id)!
+    expect(fact.deviation).toBeCloseTo(0.1, 5) // 10% over the meters plan
+  })
+
+  test('facts array over the cap is rejected (400)', async () => {
+    const { order } = (await (await authed('/api/orders', { method: 'POST', body: JSON.stringify({ ...calcBody(), mode: 'ORDER' }) })).json()) as { order: { id: string } }
+    const facts = Array.from({ length: 501 }, () => ({ fabricId: footerId, actualConsumed: 1, producedQty: 1 }))
+    const res = await authed(`/api/orders/${order.id}/fact`, { method: 'POST', body: JSON.stringify({ facts }) })
+    expect(res.status).toBe(400)
+  })
 })
