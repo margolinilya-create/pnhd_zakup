@@ -1,25 +1,21 @@
 import { addFactRequestSchema, calcRequestSchema, createOrderRequestSchema } from '@web-app-demo/contracts'
 import { Hono } from 'hono'
 
-import type { AuthService } from '../auth/service'
-import { requireAuth } from '../auth/guard'
 import type { AppEnv } from '../env'
 import type { ProcurementService } from './service'
 
 type ProcurementEnv = {
   Variables: {
-    authService: AuthService
     procurementService: ProcurementService
     env: AppEnv
-    userId: string
   }
 }
 
 export function createProcurementRoutes() {
   const routes = new Hono<ProcurementEnv>()
 
-  // All procurement endpoints require a valid access token.
-  routes.use('*', requireAuth())
+  // NOTE: authentication intentionally disabled for the open demo — these
+  // endpoints are public. Re-add requireAuth() before any real production use.
 
   // --- Reference reads ---
   routes.get('/fabrics', async (c) => c.json({ fabrics: await c.get('procurementService').listFabrics() }))
@@ -39,7 +35,7 @@ export function createProcurementRoutes() {
   // --- Orders (immutable: store input snapshot + result; no update endpoint) ---
   routes.post('/orders', async (c) => {
     const { mode, ...input } = createOrderRequestSchema.parse(await c.req.json())
-    const order = await c.get('procurementService').createOrder(input, mode, c.get('userId'))
+    const order = await c.get('procurementService').createOrder(input, mode)
     return c.json({ order }, 201)
   })
 
@@ -52,7 +48,7 @@ export function createProcurementRoutes() {
   // --- Facts (append-only; never recomputes the saved order) ---
   routes.post('/orders/:id/fact', async (c) => {
     const body = addFactRequestSchema.parse(await c.req.json())
-    const order = await c.get('procurementService').addFacts(c.req.param('id'), body.facts, c.get('userId'))
+    const order = await c.get('procurementService').addFacts(c.req.param('id'), body.facts)
     return c.json({ order }, 201)
   })
 

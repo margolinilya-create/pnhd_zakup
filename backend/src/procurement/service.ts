@@ -134,7 +134,7 @@ export class ProcurementService {
     return computeProcurement(snapshotInput, refs)
   }
 
-  async createOrder(input: CalcInput, mode: OrderMode, userId: string): Promise<OrderDto> {
+  async createOrder(input: CalcInput, mode: OrderMode, userId?: string): Promise<OrderDto> {
     const snapshot = await this.buildSnapshot(input)
     const result = computeProcurement(snapshot.input, snapshot.refs)
 
@@ -198,7 +198,7 @@ export class ProcurementService {
       wasteNatural: number
       producedQty: number
     }>,
-    userId: string,
+    userId?: string,
   ): Promise<OrderDto> {
     const order = await this.db.order.findUnique({ where: { id: orderId } })
     if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found')

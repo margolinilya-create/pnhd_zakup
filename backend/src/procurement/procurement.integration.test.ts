@@ -104,9 +104,9 @@ maybeDescribe('procurement API integration', () => {
     })
   }
 
-  test('rejects unauthenticated requests', async () => {
+  test('reference reads are public (auth disabled for the open demo)', async () => {
     const res = await app.request('/api/skus')
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
   })
 
   test('lists seeded SKUs with passport components', async () => {

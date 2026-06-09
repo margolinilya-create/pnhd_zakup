@@ -34,32 +34,8 @@ function errMessage(error: unknown): string {
   return 'Неизвестная ошибка'
 }
 
+// Authentication is intentionally disabled for the open demo — render directly.
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const auth = useAuth()
-  if (auth.isBootstrapping) {
-    return (
-      <section className="mx-auto w-full max-w-6xl px-5 py-16">
-        <Card className="w-fit">
-          <CardContent className="flex items-center gap-3">
-            <Spinner />
-            <Typography variant="bodySm" tone="muted">
-              Проверяем сессию…
-            </Typography>
-          </CardContent>
-        </Card>
-      </section>
-    )
-  }
-  if (!auth.user) {
-    return (
-      <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-16">
-        <Typography variant="h1">Нужен вход</Typography>
-        <Button asChild size="lg" className="w-fit">
-          <Link to="/">Войти</Link>
-        </Button>
-      </section>
-    )
-  }
   return <>{children}</>
 }
 
@@ -408,7 +384,7 @@ function OrdersInner() {
       <div className="flex items-center justify-between">
         <Typography variant="h1">Заказы</Typography>
         <Button asChild>
-          <Link to="/calc">Новый расчёт</Link>
+          <Link to="/">Новый расчёт</Link>
         </Button>
       </div>
       {ordersQuery.isLoading ? (
