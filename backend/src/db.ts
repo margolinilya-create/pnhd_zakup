@@ -3,7 +3,13 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from './generated/prisma/client'
 
 export function createPrisma(connectionString: string) {
-  const adapter = new PrismaPg({ connectionString: normalizePgConnectionString(connectionString) })
+  const normalized = normalizePgConnectionString(connectionString)
+  // The driver adapter ignores the `?schema=` URL param at runtime (only the
+  // migration engine honors it), so we read it here and pass it explicitly.
+  // Without this, queries hit the default `public` search_path — which would
+  // leak test data into the app schema when TEST_DATABASE_URL uses app_test.
+  const schema = new URL(normalized).searchParams.get('schema') ?? undefined
+  const adapter = new PrismaPg({ connectionString: normalized }, schema ? { schema } : undefined)
   return new PrismaClient({ adapter })
 }
 
