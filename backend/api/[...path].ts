@@ -1,12 +1,28 @@
-import { handle } from 'hono/vercel'
+import type { Hono } from 'hono'
 
-import { createApp } from '../src/app'
-import { createBackendRuntime } from '../src/runtime'
+// Lazy init so a module-resolution/init failure is caught and surfaced in the
+// response instead of an opaque FUNCTION_INVOCATION_FAILED.
+let appPromise: Promise<Hono> | null = null
 
-// Vercel Node serverless function. Catches every /api/* route and hands it to the
-// Hono app. Prisma uses the pg driver adapter (no engine binary) + the Supabase
-// transaction pooler, which suits short-lived serverless connections.
-const runtime = createBackendRuntime()
-const app = createApp({ env: runtime.env, prisma: runtime.prisma })
+async function getApp(): Promise<Hono> {
+  if (!appPromise) {
+    appPromise = (async () => {
+      const { createApp } = await import('../src/app')
+      const { createBackendRuntime } = await import('../src/runtime')
+      const runtime = createBackendRuntime()
+      return createApp({ env: runtime.env, prisma: runtime.prisma }) as unknown as Hono
+    })()
+  }
+  return appPromise
+}
 
-export default handle(app)
+export default async function handler(req: Request): Promise<Response> {
+  try {
+    const app = await getApp()
+    return await app.fetch(req)
+  } catch (error) {
+    appPromise = null
+    const message = error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error)
+    return new Response(`INIT_ERROR: ${message}`, { status: 500, headers: { 'content-type': 'text/plain' } })
+  }
+}
