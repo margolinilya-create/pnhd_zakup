@@ -35,3 +35,6 @@ backend/.prisma-generate.lock
 .vscode/
 *.swp
 *.swo
+
+# Vercel build bundle
+backend/src/_server-bundle.mjs

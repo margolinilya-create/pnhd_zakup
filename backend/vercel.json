@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd .. && bun install",
-  "buildCommand": "bun run prisma:generate:raw && mkdir -p public && echo \"pnhd-zakup API\" > public/index.html",
+  "buildCommand": "bun run prisma:generate:raw && bun build src/server-entry.ts --target=node --format=esm --outfile=src/_server-bundle.mjs && mkdir -p public && echo \"pnhd-zakup API\" > public/index.html",
   "outputDirectory": "public",
   "functions": {
     "api/[...path].ts": {
