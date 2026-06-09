@@ -33,13 +33,18 @@ export function RootLayout() {
           </Typography>
           <nav className="ml-auto flex items-center gap-2" aria-label="Primary">
             <Typography asChild variant="control" tone="muted">
-              <Link to="/" className={navLinkClass}>
-                Auth
+              <Link to="/calc" className={navLinkClass}>
+                Калькулятор
               </Link>
             </Typography>
             <Typography asChild variant="control" tone="muted">
-              <Link to="/app" className={navLinkClass}>
-                App
+              <Link to="/orders" className={navLinkClass}>
+                Заказы
+              </Link>
+            </Typography>
+            <Typography asChild variant="control" tone="muted">
+              <Link to="/" className={navLinkClass}>
+                Вход
               </Link>
             </Typography>
           </nav>

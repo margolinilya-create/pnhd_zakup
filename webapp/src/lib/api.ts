@@ -7,13 +7,33 @@ import {
   refreshRequestSchema,
   refreshResponseSchema,
   registerRequestSchema,
+  addFactRequestSchema,
+  calcRequestSchema,
+  calcResponseSchema,
+  createOrderRequestSchema,
+  fabricsResponseSchema,
+  orderResponseSchema,
+  ordersResponseSchema,
+  skusResponseSchema,
+  supplierFabricsResponseSchema,
+  suppliersResponseSchema,
+  type AddFactRequest,
   type AuthResponse,
+  type CalcRequest,
+  type CalcResult,
+  type CreateOrderRequest,
+  type FabricDto,
   type LoginRequest,
   type LogoutRequest,
   type MeResponse,
+  type OrderDto,
+  type OrderSummaryDto,
   type RefreshRequest,
   type RefreshResponse,
   type RegisterRequest,
+  type SkuDto,
+  type SupplierDto,
+  type SupplierFabricDto,
 } from '@web-app-demo/contracts'
 import type { z } from 'zod'
 
@@ -84,6 +104,57 @@ export class ApiClient {
     return this.request('/api/auth/me', meResponseSchema, {
       auth: true,
     })
+  }
+
+  // --- Procurement reference reads ---
+  listFabrics(): Promise<FabricDto[]> {
+    return this.request('/api/fabrics', fabricsResponseSchema, { auth: true }).then((r) => r.fabrics)
+  }
+
+  listSuppliers(): Promise<SupplierDto[]> {
+    return this.request('/api/suppliers', suppliersResponseSchema, { auth: true }).then((r) => r.suppliers)
+  }
+
+  listSupplierFabrics(): Promise<SupplierFabricDto[]> {
+    return this.request('/api/supplier-fabrics', supplierFabricsResponseSchema, { auth: true }).then(
+      (r) => r.supplierFabrics,
+    )
+  }
+
+  listSkus(): Promise<SkuDto[]> {
+    return this.request('/api/skus', skusResponseSchema, { auth: true }).then((r) => r.skus)
+  }
+
+  // --- Calculation + immutable orders + facts ---
+  calc(input: CalcRequest): Promise<CalcResult> {
+    const payload = calcRequestSchema.parse(input)
+    return this.request('/api/calc', calcResponseSchema, { method: 'POST', body: payload, auth: true }).then(
+      (r) => r.result,
+    )
+  }
+
+  createOrder(input: CreateOrderRequest): Promise<OrderDto> {
+    const payload = createOrderRequestSchema.parse(input)
+    return this.request('/api/orders', orderResponseSchema, { method: 'POST', body: payload, auth: true }).then(
+      (r) => r.order,
+    )
+  }
+
+  listOrders(): Promise<OrderSummaryDto[]> {
+    return this.request('/api/orders', ordersResponseSchema, { auth: true }).then((r) => r.orders)
+  }
+
+  getOrder(id: string): Promise<OrderDto> {
+    return this.request(`/api/orders/${id}`, orderResponseSchema, { auth: true }).then((r) => r.order)
+  }
+
+  addFact(id: string, input: AddFactRequest): Promise<OrderDto> {
+    const payload = addFactRequestSchema.parse(input)
+    return this.request(`/api/orders/${id}/fact`, orderResponseSchema, {
+      method: 'POST',
+      body: payload,
+      auth: true,
+    }).then((r) => r.order)
   }
 
   async logout(input: LogoutRequest = {}) {
