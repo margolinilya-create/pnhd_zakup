@@ -1,5 +1,7 @@
 # Storage And Media
 
+> **Status:** storage is deferred for this project — the calculator has no uploads/media in v1, and the `SPACES_*` vars in `backend/.env` are blank. When storage is needed, **Supabase Storage** is the natural option since the DB already lives on Supabase; the DigitalOcean Spaces path below is the alternative.
+
 Use this document when a product needs uploads, images, media, generated files, or downloadable assets.
 
 The supported DigitalOcean-first storage path is:

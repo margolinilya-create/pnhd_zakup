@@ -76,13 +76,12 @@ Use the local `shadcn` devDependency pinned in `webapp/package.json` and `bun.lo
 
 The Playwright smoke test lives in `e2e/specs/auth.spec.ts` and verifies client-side auth validation visibility, register/login mode switching, register, refresh after reload, protected UI, logout, invalid login error rendering, and a successful login after logout.
 
-The run starts Docker Compose `postgres_test`, applies migrations to `web_app_demo_test`, starts the backend with `TEST_DATABASE_URL` as its `DATABASE_URL`, starts Vite, and removes the test database volume after the run by default.
+For this project there is no local Docker: set `E2E_SKIP_DOCKER=1` so the run skips `docker compose` and uses the Supabase `app_test` schema from `TEST_DATABASE_URL` (see [../docs/LOCAL_DATABASE.md](../docs/LOCAL_DATABASE.md)). The run applies migrations to the `app_test` schema, starts the backend with `TEST_DATABASE_URL` as its `DATABASE_URL`, and starts Vite.
 
-First run:
+First run (no Docker — uses the Supabase `app_test` schema):
 
 ```bash
-docker compose version
-docker info
+export E2E_SKIP_DOCKER=1   # backend/.env already provides TEST_DATABASE_URL + TEST_ALLOW_NON_TEST_DATABASE
 bun run e2e:install
 bun run e2e
 ```

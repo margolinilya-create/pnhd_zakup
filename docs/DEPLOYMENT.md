@@ -1,8 +1,15 @@
 # Deployment
 
+> **Current course for this project (pnhd-zakup).** Infrastructure was moved off the template's original Docker/DigitalOcean/Yandex plan — see `PROJECT_CONTEXT.md` §2.
+> - **Database:** Supabase managed PostgreSQL (already provisioned). See [LOCAL_DATABASE.md](LOCAL_DATABASE.md). Production `DATABASE_URL` = the Supabase Session Pooler string.
+> - **Frontend (`webapp`):** already deployed on **Vercel** → https://pnhd-zakup-webapp.vercel.app (auto-deploys from `master`). Root directory `webapp`, build `bun run build`, output `webapp/dist`, SPA catch-all to `index.html`. Set `VITE_API_URL` in Vercel env once the backend is hosted, and add the Vercel origin to backend `CORS_ORIGINS`.
+> - **Backend (Hono):** **not hosted yet (TBD).** Pick a host that runs Bun/Hono (e.g. a small VM, Railway, Render, or a DigitalOcean App Platform service per the runbook below). Until then the deployed frontend has no working API.
+>
+> The DigitalOcean and Yandex Cloud material below is the template's original runbook — kept as a **reference/alternative** for hosting the backend (and DB, if ever migrated for 152-ФЗ). It is no longer the default path.
+
 Use this document only after the user has asked for deployment. Read the root [README.md](../README.md) and active surface READMEs first; they record the installed project's active surfaces, deferred surfaces, release targets, and validation scope.
 
-The default production path is DigitalOcean App Platform plus DigitalOcean Managed PostgreSQL. Do not ask the user to choose a cloud provider during first-run setup. Ask for product-facing release details instead:
+The template's original default production path (below) is DigitalOcean App Platform plus DigitalOcean Managed PostgreSQL. For this project it is one **alternative** for backend hosting, not the active path (DB is on Supabase, frontend on Vercel). When deploying the DigitalOcean way, ask for product-facing release details:
 
 - which active surfaces should be released now: backend/API, webapp, website, or full-stack;
 - production domains/URLs for API, webapp, and website;

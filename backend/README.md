@@ -14,14 +14,10 @@ The backend owns the API, authentication, integrations, persistence, and server-
 
 ## Commands
 
-Run these from the repository root:
+Run these from the repository root. The database is Supabase (no Docker) — see [../docs/LOCAL_DATABASE.md](../docs/LOCAL_DATABASE.md):
 
 ```bash
-docker compose version
-docker info
-docker compose pull postgres
-docker compose up -d postgres
-cp backend/.env.example backend/.env
+cp backend/.env.example backend/.env   # then set Supabase connection strings
 bun run --cwd backend dev
 bun run --cwd backend typecheck
 bun run --cwd backend test
@@ -39,15 +35,15 @@ bun run --cwd backend prisma:deploy
 
 On Windows PowerShell, use `Copy-Item backend/.env.example backend/.env` instead of `cp`. Workspace aliases are also available from the repository root: `bun run dev:backend`, `bun run build:backend`, `bun run typecheck:backend`, and `bun run test:backend`.
 
-`bun run test:integration` starts `postgres_test` from `../docker-compose.yml`, applies Prisma migrations to `web_app_demo_test`, and runs DB-backed auth API tests. If Docker is managed separately, set `TEST_SKIP_DOCKER=1` and `TEST_DATABASE_URL`. The test database name must end with `_test` unless `TEST_ALLOW_NON_TEST_DATABASE=1` is set intentionally.
+`bun run test:integration` runs DB-backed auth API tests against the **Supabase `app_test` schema** (no local Docker). `backend/.env` already sets `TEST_SKIP_DOCKER=1`, `TEST_DATABASE_URL` (with `schema=app_test`), and `TEST_ALLOW_NON_TEST_DATABASE=1` — Supabase's database is always named `postgres`, so the name-based `*_test` guard is bypassed and isolation is provided by the schema. See [../docs/LOCAL_DATABASE.md](../docs/LOCAL_DATABASE.md).
 
-`bun run smoke:docker` builds the backend Docker image, starts it against `postgres_test`, waits for `/health`, and removes only the smoke container it created.
+`bun run smoke:docker` builds and smoke-tests the backend Docker image (from `backend/Dockerfile`) against a Postgres. It was written for the old local `postgres_test` container and is **not** part of the Supabase dev flow; point it at a disposable Postgres if you need it.
 
 ## Env
 
-Copy `backend/.env.example` to `backend/.env` for local development. The example `DATABASE_URL` matches the Docker Compose `postgres` service documented in [../docs/LOCAL_DATABASE.md](../docs/LOCAL_DATABASE.md): database `web_app_demo`, user `superuser`, password `superpassword`, host port `54329`.
+Copy `backend/.env.example` to `backend/.env` for local development, then set `DATABASE_URL` to the Supabase **Session Pooler** string (schema `public`) — fill in the password from the Supabase dashboard. See [../docs/LOCAL_DATABASE.md](../docs/LOCAL_DATABASE.md). There is no local Docker Postgres.
 
-The example `TEST_DATABASE_URL` matches the Docker Compose `postgres_test` service: database `web_app_demo_test`, user `superuser`, password `superpassword`, manual host port `54330`. Automated runners may replace the port with a repository-derived value so parallel checkouts do not collide.
+The example `TEST_DATABASE_URL` points at the Supabase **`app_test`** schema (same database as `DATABASE_URL`, `?schema=app_test`) through the Session Pooler. There is no Docker test container; `TEST_SKIP_DOCKER=1` and `TEST_ALLOW_NON_TEST_DATABASE=1` in `backend/.env` make the runner target Supabase directly. See [../docs/LOCAL_DATABASE.md](../docs/LOCAL_DATABASE.md).
 
 Keep an explicit username and password in Prisma connection URLs even on local native PostgreSQL installs. Peer-auth style URLs without a user can make Prisma schema-engine commands such as `migrate dev`, `migrate deploy`, and `db push` fail with an unhelpful generic engine error.
 

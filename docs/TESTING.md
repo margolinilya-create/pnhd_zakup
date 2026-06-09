@@ -1,5 +1,7 @@
 # Testing
 
+> **Test database = Supabase, not Docker.** This project has no local Docker Postgres (see `PROJECT_CONTEXT.md` §2). Backend integration and E2E run against the Supabase **`app_test`** schema via `TEST_DATABASE_URL`. `backend/.env` sets `TEST_SKIP_DOCKER=1` and `TEST_ALLOW_NON_TEST_DATABASE=1` (Supabase's DB is always `postgres`, so the name-based `*_test` guard is bypassed; isolation is the schema). For Playwright, set `E2E_SKIP_DOCKER=1` so it skips `docker compose` and uses `TEST_DATABASE_URL`. The `postgres_test` / `docker compose` instructions below describe the template's original Docker flow and are superseded.
+
 The goal of this template's tests is to show future agents where behavior should be verified and how to keep E2E broad enough to protect valuable behavior without turning it into exhaustive matrices.
 
 ## Pyramid

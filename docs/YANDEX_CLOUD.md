@@ -1,5 +1,7 @@
 # Yandex Cloud Alternative
 
+> **Not the current course.** This project runs its database on **Supabase** and its frontend on **Vercel** (see `PROJECT_CONTEXT.md` §2). Yandex Cloud is kept here only as a documented alternative — most relevant if Russian personal-data residency (**152-ФЗ**) ever forces a move off Supabase (Germany).
+
 Use this document only when the user explicitly asks for Yandex Cloud or the product has a clear regional, compliance, or commercial reason to avoid the default DigitalOcean path.
 
 DigitalOcean remains the default provider in this template. Do not ask the user to compare providers during first-run setup.

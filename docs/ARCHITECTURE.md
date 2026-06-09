@@ -2,6 +2,16 @@
 
 This repository defines a golden path for web and backend products: shared contracts, one backend, one CSR browser app (`webapp`), one Astro SSG/SSR site (`website`), and little custom infrastructure. The runnable mobile app lives on the `mobile` branch and extends this architecture only when mobile is active.
 
+## Infrastructure (current course)
+
+This project diverges from the template's original Docker/DigitalOcean/Yandex defaults — see `PROJECT_CONTEXT.md` §2:
+
+- **Database:** Supabase managed PostgreSQL, used **only as a database** (Prisma + `pg` adapter, connecting as the `postgres` role). We do **not** use Supabase Auth, Supabase Storage, or Row-Level Security — RLS is intentionally off and the `postgres` role bypasses it. Authorization is enforced in the backend (role field now, RBAC in v2). The ТЗ §11 recommendation (Supabase Auth + RLS, no backend) was deliberately not adopted in favor of the vibe backend.
+- **Frontend:** `webapp` deploys to Vercel; `backend` is not hosted yet (TBD).
+- **152-ФЗ note:** Supabase is hosted in Germany. If Russian personal-data residency becomes a requirement, revisit hosting; Yandex Cloud remains a documented alternative ([YANDEX_CLOUD.md](YANDEX_CLOUD.md)).
+
+The DigitalOcean/Yandex/Valkey mentions in the sections below describe the template's **alternative** provider path, not the active one.
+
 ## Contracts
 
 `packages/contracts` is the source of truth for API payloads, DTOs, and error shapes. New endpoints should start with Zod schemas in contracts. The backend then uses those schemas for request validation, while the webapp uses them in TanStack Form and API clients.
@@ -96,9 +106,9 @@ bun run --cwd backend prisma:deploy
 
 ## Local Infrastructure
 
-Local PostgreSQL is provided by Docker Compose, not by a native database install. The development service uses `postgres:18-alpine`, exposes `web_app_demo` on host port `54329`, and stores data in the `postgres_18_data` volume. The test service uses the same image with database `web_app_demo_test`; automated runners set `POSTGRES_TEST_PORT` to a repository-derived port when they need isolation. PostgreSQL 18 is intentional here because the backend schema relies on the native `uuidv7()` database function.
+The database is **Supabase** managed PostgreSQL (PG17), not a local Docker install — see [LOCAL_DATABASE.md](LOCAL_DATABASE.md). The app and local machine connect via the **Session Pooler** as the `postgres` role; the app schema is `public` and tests use `app_test` in the same database. Because the backend schema relies on database-generated UUIDv7 IDs and `uuidv7()` is built into PG18 but not PG17, a pure-SQL `uuidv7()` function is defined in the database.
 
-Keep `docker-compose.yml`, `backend/.env.example`, `.env.example`, and [LOCAL_DATABASE.md](LOCAL_DATABASE.md) aligned when changing local database names, ports, credentials, image tags, or volume paths.
+Keep `backend/.env` / `backend/.env.example` and [LOCAL_DATABASE.md](LOCAL_DATABASE.md) aligned when changing connection strings, schemas, or credentials.
 
 ## Storage
 

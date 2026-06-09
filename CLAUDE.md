@@ -40,7 +40,7 @@
 - When structure is unclear, get a fresh snapshot with `rg --files`, `tree -L 2`, or `tree -L 3`.
 - Do not treat `README.md` as a file inventory. Discover structure dynamically.
 - Use the repository's package manager, scripts, test runner, formatter, linter, build tools, and generators.
-- Use `docs/LOCAL_DATABASE.md` and `docker-compose.yml` as the local PostgreSQL source of truth. Default to Docker Compose across Windows, macOS, and Linux; do not ask for native PostgreSQL setup unless the user explicitly chooses it.
+- Use `docs/LOCAL_DATABASE.md` as the database source of truth. The database is **Supabase** (managed Postgres) accessed via the Session Pooler — there is no local Docker Compose Postgres.
 - In Codex shell sessions, do not assume JS tooling is on `PATH`. For `node`, `npm`, and `bun`, prefer `PATH="/opt/homebrew/bin:$HOME/.bun/bin:$PATH"`.
 - Prefer existing utilities, framework APIs, and the standard library before adding dependencies.
 - Do not add new production or tooling dependencies without explicit user approval unless the user directly requested that dependency by name.
@@ -55,6 +55,7 @@
 
 ## Project Context
 
+- Read `PROJECT_CONTEXT.md` (repo root) first: it captures this product (garment-procurement calculator), the locked architectural decisions, and the current infrastructure — **Supabase** as managed Postgres + **Vercel** frontend (the original Docker/Yandex plan was superseded). `specs/tz-calculator.md` is the domain source of truth; `claude_code_playbook.md` (repo root) drives the phased build.
 - Use `README.md` as the source of truth for first-run repository download, bootstrap, and product intake instructions.
 - Keep durable project choices in README files and docs, not in this agent file.
 - Infrastructure, deployment, storage, local database, testing runbooks, and provider-specific choices live in `README.md` and `docs/`.
@@ -68,7 +69,7 @@
 This block exists only for fresh installs from the template. If this repository has not been initialized for a real project yet:
 
 - Read `README.md`, especially `Agent Repo Download Instructions`, before setup or feature work.
-- Follow that README section for product intake, active/deferred surfaces, repository remote handling, Docker/PostgreSQL setup, deployment scope, Expo/EAS owner setup, and mobile Maestro dev-client setup when mobile E2E is active.
+- Follow that README section for product intake, active/deferred surfaces, repository remote handling, database (Supabase) setup, deployment scope, Expo/EAS owner setup, and mobile Maestro dev-client setup when mobile E2E is active.
 - Record durable project choices in README files and docs, not in `AGENTS.md` or `CLAUDE.md`.
 - After first-run setup is complete, delete this entire `Bootstrap-Only Instructions` block from both `AGENTS.md` and `CLAUDE.md`.
 <!-- BOOTSTRAP_ONLY_END -->

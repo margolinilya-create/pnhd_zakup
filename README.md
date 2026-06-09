@@ -6,6 +6,8 @@
 
 A full-stack starter for web and backend products: one repository with a Bun/Hono backend, a React CSR browser client (`webapp`), an Astro SSG/SSR site (`website`), and shared API contracts. The runnable Expo mobile template lives on the `mobile` branch so the default branch stays focused on webapp, backend, website, infrastructure, and shared contracts.
 
+> **This is an installed project (pnhd-zakup), not a fresh template.** See **[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)** for the product (garment-procurement calculator) and the actual infrastructure, which **overrides the template defaults below**: the database is **Supabase** (managed Postgres — see [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md)), there is **no local Docker Postgres**, and the frontend deploys to **Vercel**. The Docker/DigitalOcean/Yandex instructions in this README are the template's original path, kept as reference/alternative.
+
 ## Agent Intake Checklist Before Installing
 
 Before cloning or installing this template for an end user, the agent should ask a short product-focused intake in the user's language and record the answers during setup:
@@ -23,7 +25,7 @@ Before cloning or installing this template for an end user, the agent should ask
 - Ask whether deployment is needed now. If yes, use DigitalOcean by default and ask for production domains/URLs and release targets, not for a cloud provider choice.
 - For DigitalOcean deployment, verify App Platform GitHub integration first, then generate specs with `bun run deploy:do:specs`; never hand-substitute secrets or URLs into app specs.
 - If the user explicitly asks for Yandex Cloud, follow [docs/YANDEX_CLOUD.md](docs/YANDEX_CLOUD.md) instead of improvising provider choices.
-- If backend/API, full-stack, uploads, or database-backed validation is active, verify Docker Compose and the Docker daemon before local setup.
+- If backend/API, full-stack, or database-backed validation is active, configure the Supabase connection in `backend/.env` before local setup (see [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md)). There is no local Docker database.
 
 ## Agent Repo Download Instructions
 
@@ -55,7 +57,7 @@ Install this repository into the project. Before cloning from a GitHub URL, ask 
 - On the `mobile` branch, use an installed Expo development build for Maestro E2E, not Expo Go. Follow that branch's mobile README before running mobile flows.
 - Prefer README-level deferred-surface notes over source-code comments. Add code comments only when a dormant code path would otherwise mislead future work.
 - Default to local-only setup when the user does not need deployment yet. Local development must not require DigitalOcean credentials.
-- Use [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md) and `docker-compose.yml` as the local PostgreSQL source of truth. The default local database path is Docker Compose, not a native PostgreSQL install.
+- Use [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md) as the database source of truth. The database is **Supabase** (managed Postgres); there is no local Docker Compose Postgres.
 - If deployment is requested, use DigitalOcean App Platform as the supported production path. Use DigitalOcean Managed PostgreSQL for production databases; do not use App Platform dev databases for production.
 - For the default DigitalOcean production backend/API service, start with one `apps-s-1vcpu-1gb` App Platform container (`instance_count: 1`) plus the smallest DigitalOcean Managed PostgreSQL production cluster. This keeps the initial backend and database infrastructure around $27/month before taxes, traffic overages, storage, and optional add-ons. `webapp` and fully prerendered `website` output are Static Sites and do not need runtime container sizing. A `website` route with SSR/on-demand rendering or server islands needs a runtime service.
 - Deploy `webapp` and fully prerendered `website` output as DigitalOcean App Platform Static Sites, not App Platform services. They do not get `instance_size_slug` or `instance_count`; static site assets are served through DigitalOcean's global CDN by default. Use an external CDN only when the product needs advanced controls such as bot filtering, custom rate limiting, or geographic traffic rules.
@@ -75,9 +77,9 @@ Install this repository into the project. Before cloning from a GitHub URL, ask 
 - `mobile/README.md` - pointer to the runnable Expo mobile template on the `mobile` branch.
 - `packages/contracts` - shared Zod schemas and TypeScript API types.
 - `.do` - committed DigitalOcean App Platform spec templates; generate concrete specs into `.scratch/deploy` with `bun run deploy:do:specs`.
-- `docker-compose.yml` - local PostgreSQL 18 through the official `postgres:18-alpine` image on port `54329`; test runners use a repository-derived port by default, or `POSTGRES_TEST_PORT` when set. PostgreSQL 18 is intentional because the backend schema uses strict database-generated UUIDv7 IDs.
+- Database: **Supabase** managed Postgres (the template's `docker-compose.yml` was removed when local Docker Postgres was replaced). The schema uses database-generated UUIDv7 IDs; on Supabase's PostgreSQL 17 a `uuidv7()` SQL function provides them (see [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md)).
 - `docs/TESTING.md` - the backend and Playwright testing contract. Mobile Maestro guidance lives on the `mobile` branch.
-- `docs/LOCAL_DATABASE.md` - cross-platform local PostgreSQL setup for Windows, macOS, and Linux.
+- `docs/LOCAL_DATABASE.md` - Supabase database setup: connection (Session Pooler), password, migrations, and test schema.
 - `docs/STORAGE.md` - DigitalOcean Spaces, CDN, uploads, and image/media storage rules.
 - `docs/YANDEX_CLOUD.md` - optional Yandex Cloud deployment path when the user explicitly chooses it.
 
@@ -100,29 +102,9 @@ Install dependencies first:
 bun install
 ```
 
-If backend/API, full-stack, or other database-backed work is active, check Docker first. Docker is the local app that runs PostgreSQL for this template:
-
-```bash
-docker compose version
-docker info
-```
-
-If either command fails, install and start Docker before continuing:
-
-- Windows: install Docker Desktop, enable the WSL 2 backend, start Docker Desktop, then rerun `docker compose version` and `docker info`.
-- macOS: install and start Docker Desktop, or another Docker Engine with Compose v2, then rerun `docker compose version` and `docker info`.
-- Linux: install Docker Engine and the Docker Compose plugin, start the Docker service, then rerun `docker compose version` and `docker info`.
-
-Do not switch new users to native PostgreSQL during local setup. The repository's documented local path is Docker Compose for backend/API work.
+This project's database is **Supabase** (managed Postgres) — there is **no local Docker step**. Full setup (Session Pooler, password, `uuidv7()`, test schema) is in [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md).
 
 ### Backend/API Or Full-Stack
-
-Only run this block when backend/API, full-stack, or DB-backed validation is active.
-
-```bash
-docker compose pull postgres
-docker compose up -d postgres
-```
 
 Create the backend env file:
 
@@ -136,10 +118,10 @@ cp backend/.env.example backend/.env
 Copy-Item backend/.env.example backend/.env
 ```
 
-Then apply migrations:
+Set `DATABASE_URL` and `TEST_DATABASE_URL` to the Supabase Session Pooler strings (see [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md)), then apply migrations:
 
 ```bash
-bun run --cwd backend prisma:migrate
+bun run --cwd backend prisma:deploy
 ```
 
 ### Run The Active Surfaces
@@ -160,7 +142,7 @@ Create `webapp/.env` when the browser client should use a non-default API URL:
 VITE_API_URL=http://localhost:3000
 ```
 
-Test runners use the separate Docker Compose `postgres_test` service and the `TEST_DATABASE_URL` shape from `.env.example`/`backend/.env.example`. Webapp Playwright E2E starts `postgres_test`, applies migrations to `web_app_demo_test`, runs the browser flow, and tears down its test database volume by default.
+Test runners use the Supabase `app_test` schema via `TEST_DATABASE_URL` — no Docker. `backend/.env` sets `TEST_SKIP_DOCKER=1` and `TEST_ALLOW_NON_TEST_DATABASE=1`; integration tests and Webapp Playwright E2E apply migrations to the `app_test` schema and run against it. See [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md).
 
 ## Workspace Commands
 
@@ -173,7 +155,7 @@ Test runners use the separate Docker Compose `postgres_test` service and the `TE
 - `bun run test` - run contract, backend, and webapp unit/integration tests.
 - `bun run test:contracts` - run shared Zod contract tests.
 - `bun run test:backend` - run backend unit and integration tests.
-- `bun run test:backend:integration` - run DB-backed auth tests through `postgres_test`.
+- `bun run test:backend:integration` - run DB-backed auth tests against the Supabase `app_test` schema.
 - `bun run test:webapp` - run webapp client tests.
 - `bun run deploy:do:specs` - safely generate concrete DigitalOcean specs under `.scratch/deploy`.
 - `bun run e2e:webapp` - run the Playwright auth smoke test through backend + Vite.
@@ -183,7 +165,7 @@ Test runners use the separate Docker Compose `postgres_test` service and the `TE
 ## Project READMEs
 
 - [backend/README.md](backend/README.md) - API, auth, Prisma, and backend validation.
-- [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md) - Docker Compose PostgreSQL setup and reset workflow.
+- [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md) - Supabase database setup, connection, and migrations.
 - [docs/STORAGE.md](docs/STORAGE.md) - DigitalOcean Spaces, CDN, uploads, and image/media storage rules.
 - [docs/YANDEX_CLOUD.md](docs/YANDEX_CLOUD.md) - optional Yandex Cloud deployment path when explicitly selected.
 - [webapp/README.md](webapp/README.md) - CSR browser client setup, env, and Playwright smoke.
@@ -213,6 +195,6 @@ For framework, API, deployment, or testing questions, consult the current upstre
 - Web stack: [React docs](https://react.dev/reference/react), [Vite guide](https://vite.dev/guide/), [TanStack Query](https://tanstack.com/query/latest/docs/framework/react/overview), [TanStack Form](https://tanstack.com/form/latest/docs/framework/react/quick-start), and [TanStack Router](https://tanstack.com/router/latest/docs/overview)
 - Testing: [Playwright docs](https://playwright.dev/docs/intro)
 - Website: [Astro docs](https://docs.astro.build/en/getting-started/)
-- Local infrastructure: [Docker Compose docs](https://docs.docker.com/compose/) and [PostgreSQL Docker Official Image](https://hub.docker.com/_/postgres)
+- Database: [Supabase docs](https://supabase.com/docs/guides/database/connecting-to-postgres) and [PostgreSQL docs](https://www.postgresql.org/docs/)
 - Deployment and storage: [DigitalOcean App Platform](https://docs.digitalocean.com/products/app-platform/), [DigitalOcean App specs](https://docs.digitalocean.com/products/app-platform/reference/app-spec/), [DigitalOcean Static Sites](https://docs.digitalocean.com/products/app-platform/how-to/manage-static-sites/), [DigitalOcean Managed Databases in App Platform](https://docs.digitalocean.com/products/app-platform/how-to/manage-databases/), [DigitalOcean Valkey](https://docs.digitalocean.com/products/databases/valkey/), [DigitalOcean Dockerfile builds](https://docs.digitalocean.com/products/app-platform/reference/dockerfile/), [DigitalOcean Bun buildpack](https://docs.digitalocean.com/products/app-platform/reference/buildpacks/bun/), [doctl](https://docs.digitalocean.com/reference/doctl/), [doctl apps spec validate](https://docs.digitalocean.com/reference/doctl/reference/apps/spec/validate/), [DigitalOcean Container Registry](https://docs.digitalocean.com/products/container-registry/), [DigitalOcean Spaces](https://docs.digitalocean.com/products/spaces/), [DigitalOcean Spaces CDN](https://docs.digitalocean.com/products/spaces/how-to/enable-cdn/), and [external CDN in front of App Platform](https://docs.digitalocean.com/products/app-platform/how-to/configure-external-cdn/)
 - Optional Yandex Cloud path: [Yandex Cloud CLI](https://yandex.cloud/en/docs/cli/quickstart), [Yandex Serverless Containers](https://yandex.cloud/en/docs/serverless-containers/), [Yandex Container Registry](https://yandex.cloud/en/docs/container-registry/quickstart), [Yandex Managed PostgreSQL](https://yandex.cloud/en/docs/managed-postgresql/), [Yandex Managed Service for Valkey](https://yandex.cloud/en/docs/managed-redis/), [Yandex Object Storage static hosting](https://yandex.cloud/en/docs/storage/operations/hosting/setup), [Yandex Object Storage AWS CLI](https://yandex.cloud/en/docs/storage/tools/aws-cli), [Yandex Cloud CDN](https://yandex.cloud/en/docs/cdn/concepts/), and [Yandex Cloud Marketplace Image Resizer](https://yandex.cloud/en/marketplace/products/yc/image-resizer)
