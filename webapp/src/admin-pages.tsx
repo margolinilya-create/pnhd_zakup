@@ -23,6 +23,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Typography } from '@/components/ui/typography'
 import { ApiRequestError } from '@/lib/api'
+import { formatFabricLabel } from '@/lib/fabric'
 import { useAuth } from '@/lib/use-auth'
 import { cn } from '@/lib/utils'
 
@@ -604,7 +605,7 @@ export function SuppliersAdminPage() {
                 ) : (
                   selectedEdges.map((sf) => (
                     <TableRow key={sf.id}>
-                      <TableCell>{fabricById.get(sf.fabricId)?.name ?? sf.fabricId}</TableCell>
+                      <TableCell>{formatFabricLabel(fabricById.get(sf.fabricId)) ?? sf.fabricId}</TableCell>
                       <TableCell>{sf.priceRub ?? '—'}</TableCell>
                       <TableCell>{sf.priceUsd ?? '—'}</TableCell>
                       <TableCell>
@@ -627,7 +628,7 @@ export function SuppliersAdminPage() {
                   <NativeSelectOption value="">— выберите ткань —</NativeSelectOption>
                   {fabrics.map((f) => (
                     <NativeSelectOption key={f.id} value={f.id}>
-                      {f.code} · {f.name}
+                      {f.code} · {formatFabricLabel(f)}
                     </NativeSelectOption>
                   ))}
                 </NativeSelect>
@@ -972,7 +973,7 @@ export function SkusAdminPage() {
                             onCheckedChange={(v) => toggleFabric(idx, f.id, v === true)}
                           />
                           <Typography variant="bodySm">
-                            {f.code} · {f.name}
+                            {f.code} · {formatFabricLabel(f)}
                           </Typography>
                         </label>
                       ))}

@@ -15,6 +15,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Typography } from '@/components/ui/typography'
 import { ApiRequestError } from '@/lib/api'
+import { fabricDensityLabel, fabricTypeKey, formatFabricLabel, groupFabricsByType } from '@/lib/fabric'
 import { useAuth } from '@/lib/use-auth'
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
@@ -186,6 +187,13 @@ function CalculatorInner() {
             {components.map((c) => {
               const sel = selections[c.id]
               const sfList = suppliersForFabric(sel?.fabricId ?? '')
+              const allowedFabrics = c.allowedFabricIds
+                .map((fid) => fabricById.get(fid))
+                .filter((f): f is FabricDto => Boolean(f))
+              const groups = groupFabricsByType(allowedFabrics)
+              const current = fabricById.get(sel?.fabricId ?? '')
+              const currentKey = current ? fabricTypeKey(current) : ''
+              const densities = groups.find((g) => g.key === currentKey)?.fabrics ?? []
               return (
                 <div key={c.id} className="grid gap-3 rounded-md border p-3">
                   <Typography variant="control" tone="muted">
@@ -194,12 +202,28 @@ function CalculatorInner() {
                   <Field>
                     <FieldLabel>Ткань</FieldLabel>
                     <NativeSelect
+                      value={currentKey}
+                      onChange={(e) => {
+                        const group = groups.find((g) => g.key === e.target.value)
+                        if (group?.fabrics[0]) setComponentFabric(c.id, group.fabrics[0].id)
+                      }}
+                    >
+                      {groups.map((g) => (
+                        <NativeSelectOption key={g.key} value={g.key}>
+                          {g.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Плотность</FieldLabel>
+                    <NativeSelect
                       value={sel?.fabricId ?? ''}
                       onChange={(e) => setComponentFabric(c.id, e.target.value)}
                     >
-                      {c.allowedFabricIds.map((fid) => (
-                        <NativeSelectOption key={fid} value={fid}>
-                          {fabricById.get(fid)?.name ?? fid}
+                      {densities.map((f) => (
+                        <NativeSelectOption key={f.id} value={f.id}>
+                          {fabricDensityLabel(f, densities)}
                         </NativeSelectOption>
                       ))}
                     </NativeSelect>
@@ -333,7 +357,7 @@ function ResultView({ result, fabricById }: { result: CalcResult; fabricById: Ma
         <TableBody>
           {result.fabrics.map((f) => (
             <TableRow key={f.fabricId}>
-              <TableCell>{f.fabricName || fabricById.get(f.fabricId)?.name || f.fabricId}</TableCell>
+              <TableCell>{formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId}</TableCell>
               <TableCell>
                 {fmt(f.needKg)} кг
                 <br />
@@ -462,6 +486,9 @@ function OrderDetailInner() {
   const orderQuery = useQuery({ queryKey: ['orders', id], queryFn: () => api.getOrder(id), enabled: Boolean(id) })
   const order = orderQuery.data
 
+  const fabricsQuery = useQuery({ queryKey: ['fabrics'], queryFn: () => api.listFabrics() })
+  const fabricById = useMemo(() => new Map((fabricsQuery.data ?? []).map((f) => [f.id, f])), [fabricsQuery.data])
+
   const [facts, setFacts] = useState<Record<string, FactInput>>({})
 
   const addFactMutation = useMutation({
@@ -543,7 +570,7 @@ function OrderDetailInner() {
             <TableBody>
               {order.result.fabrics.map((f) => (
                 <TableRow key={f.fabricId}>
-                  <TableCell>{f.fabricName}</TableCell>
+                  <TableCell>{formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId}</TableCell>
                   <TableCell>{fmt(f.needKg)}</TableCell>
                   <TableCell>
                     {fmt(f.orderQty, 0)} {f.rollUnit} ({f.rollsCount} рул.)
@@ -578,7 +605,7 @@ function OrderDetailInner() {
                 const fact = facts[f.fabricId]
                 return (
                   <TableRow key={f.fabricId}>
-                    <TableCell>{f.fabricName}</TableCell>
+                    <TableCell>{formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId}</TableCell>
                     <TableCell>
                       <Input type="number" min={0} value={fact?.actualConsumed ?? ''} onChange={(e) => setFact(f.fabricId, { actualConsumed: Number(e.target.value) })} />
                     </TableCell>
@@ -632,7 +659,7 @@ function OrderDetailInner() {
               <TableBody>
                 {order.facts.map((f) => (
                   <TableRow key={f.id}>
-                    <TableCell>{order.result.fabrics.find((rf) => rf.fabricId === f.fabricId)?.fabricName ?? f.fabricId}</TableCell>
+                    <TableCell>{formatFabricLabel(fabricById.get(f.fabricId)) || order.result.fabrics.find((rf) => rf.fabricId === f.fabricId)?.fabricName || f.fabricId}</TableCell>
                     <TableCell>{fmt(f.actualConsumed)}</TableCell>
                     <TableCell>{f.plannedKg === null ? '—' : fmt(f.plannedKg)}</TableCell>
                     <TableCell>
