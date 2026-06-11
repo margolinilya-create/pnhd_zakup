@@ -1,17 +1,20 @@
+import { ArrowLeft01Icon, Calculator01Icon, Invoice01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { CalcResult, FabricDto, SupplierFabricDto } from '@web-app-demo/contracts'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { Separator } from '@/components/ui/separator'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Typography } from '@/components/ui/typography'
 import { ApiRequestError } from '@/lib/api'
@@ -35,9 +38,31 @@ function errMessage(error: unknown): string {
   return 'Неизвестная ошибка'
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  MAIN: 'Основная ткань',
+  RIB: 'Рибана',
+  TRIM: 'Отделка',
+  OTHER: 'Прочее',
+}
+
 // Authentication is intentionally disabled for the open demo — render directly.
 function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
+}
+
+function PageSkeleton() {
+  return (
+    <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
+      <div className="grid gap-3">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-9 w-80 max-w-full" />
+      </div>
+      <div className="grid gap-3">
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    </section>
+  )
 }
 
 // ---------------- Calculator ----------------
@@ -69,12 +94,13 @@ function CalculatorInner() {
   const [fxRate, setFxRate] = useState(95)
 
   const skus = skusQuery.data ?? []
-  const fabrics = fabricsQuery.data ?? []
   const supplierFabrics = sfQuery.data ?? []
-  const suppliers = suppliersQuery.data ?? []
 
-  const fabricById = useMemo(() => new Map(fabrics.map((f) => [f.id, f])), [fabrics])
-  const supplierName = useMemo(() => new Map(suppliers.map((s) => [s.id, s.name])), [suppliers])
+  const fabricById = useMemo(() => new Map((fabricsQuery.data ?? []).map((f) => [f.id, f])), [fabricsQuery.data])
+  const supplierName = useMemo(
+    () => new Map((suppliersQuery.data ?? []).map((s) => [s.id, s.name])),
+    [suppliersQuery.data],
+  )
 
   const selectedSku = skus.find((s) => s.id === skuId) ?? null
   const components = selectedSku?.passport?.components ?? []
@@ -124,10 +150,17 @@ function CalculatorInner() {
     fxRate,
   })
 
-  const calcMutation = useMutation({ mutationFn: () => api.calc(buildInput()) })
+  const calcMutation = useMutation({
+    mutationFn: () => api.calc(buildInput()),
+    onError: (error) => toast.error('Не удалось рассчитать', { description: errMessage(error) }),
+  })
   const createMutation = useMutation({
     mutationFn: (mode: 'TEST' | 'ORDER') => api.createOrder({ ...buildInput(), mode }),
-    onSuccess: (order) => navigate({ to: '/orders/$id', params: { id: order.id } }),
+    onSuccess: (order) => {
+      toast.success(order.mode === 'ORDER' ? 'Заказ создан' : 'Тест сохранён')
+      navigate({ to: '/orders/$id', params: { id: order.id } })
+    },
+    onError: (error) => toast.error('Не удалось сохранить', { description: errMessage(error) }),
   })
 
   const totalGarments = Object.values(sizeQ).reduce((sum, q) => sum + (Number(q) || 0), 0)
@@ -139,33 +172,18 @@ function CalculatorInner() {
   const result = calcMutation.data
 
   if (skusQuery.isLoading) {
-    return (
-      <section className="mx-auto w-full max-w-6xl px-5 py-16">
-        <Card className="w-fit">
-          <CardContent className="flex items-center gap-3">
-            <Spinner />
-            <Typography variant="bodySm" tone="muted">
-              Загружаем справочники…
-            </Typography>
-          </CardContent>
-        </Card>
-      </section>
-    )
+    return <PageSkeleton />
   }
 
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
-      <div className="grid gap-2">
-        <Badge variant="outline" className="w-fit">
-          Калькулятор закупки
-        </Badge>
-        <Typography variant="h1">Расчёт потребности в ткани</Typography>
-        <Typography tone="muted">
-          Выберите модель, ткани и поставщиков, задайте размерный ряд и резерв — получите объём закупки и стоимость.
-        </Typography>
-      </div>
+      <PageHeader
+        eyebrow="Калькулятор закупки"
+        title="Расчёт потребности в ткани"
+        description="Выберите модель, ткани и поставщиков, задайте размерный ряд и резерв — получите объём закупки и стоимость."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Параметры</CardTitle>
@@ -195,10 +213,10 @@ function CalculatorInner() {
               const currentKey = current ? fabricTypeKey(current) : ''
               const densities = groups.find((g) => g.key === currentKey)?.fabrics ?? []
               return (
-                <div key={c.id} className="grid gap-3 rounded-md border p-3">
-                  <Typography variant="control" tone="muted">
-                    Компонент: {c.role}
-                  </Typography>
+                <div key={c.id} className="grid gap-3 rounded-xl border bg-muted/30 p-4">
+                  <Badge variant="secondary" className="w-fit">
+                    {ROLE_LABELS[c.role] ?? c.role}
+                  </Badge>
                   <Field>
                     <FieldLabel>Ткань</FieldLabel>
                     <NativeSelect
@@ -215,41 +233,46 @@ function CalculatorInner() {
                       ))}
                     </NativeSelect>
                   </Field>
-                  <Field>
-                    <FieldLabel>Плотность</FieldLabel>
-                    <NativeSelect
-                      value={sel?.fabricId ?? ''}
-                      onChange={(e) => setComponentFabric(c.id, e.target.value)}
-                    >
-                      {densities.map((f) => (
-                        <NativeSelectOption key={f.id} value={f.id}>
-                          {fabricDensityLabel(f, densities)}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Поставщик</FieldLabel>
-                    <NativeSelect
-                      value={sel?.supplierId ?? ''}
-                      onChange={(e) => setComponentSupplier(c.id, e.target.value)}
-                    >
-                      {sfList.length === 0 && <NativeSelectOption value="">— нет поставщиков —</NativeSelectOption>}
-                      {sfList.map((sf) => (
-                        <NativeSelectOption key={sf.id} value={sf.supplierId}>
-                          {supplierName.get(sf.supplierId) ?? sf.supplierId} ·{' '}
-                          {currency === 'RUB' ? `${sf.priceRub ?? '—'} ₽/кг` : `${sf.priceUsd ?? '—'} $/кг`}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </Field>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel>Плотность</FieldLabel>
+                      <NativeSelect
+                        value={sel?.fabricId ?? ''}
+                        onChange={(e) => setComponentFabric(c.id, e.target.value)}
+                      >
+                        {densities.map((f) => (
+                          <NativeSelectOption key={f.id} value={f.id}>
+                            {fabricDensityLabel(f, densities)}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Поставщик</FieldLabel>
+                      <NativeSelect
+                        value={sel?.supplierId ?? ''}
+                        onChange={(e) => setComponentSupplier(c.id, e.target.value)}
+                      >
+                        {sfList.length === 0 && <NativeSelectOption value="">— нет поставщиков —</NativeSelectOption>}
+                        {sfList.map((sf) => (
+                          <NativeSelectOption key={sf.id} value={sf.supplierId}>
+                            {supplierName.get(sf.supplierId) ?? sf.supplierId} ·{' '}
+                            {currency === 'RUB' ? `${sf.priceRub ?? '—'} ₽/кг` : `${sf.priceUsd ?? '—'} $/кг`}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                  </div>
                 </div>
               )
             })}
 
             {sizes.length > 0 && (
               <div className="grid gap-2">
-                <FieldLabel>Размерный ряд (кол-во изделий)</FieldLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel>Размерный ряд (кол-во изделий)</FieldLabel>
+                  <Badge variant="outline">Всего: {totalGarments}</Badge>
+                </div>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
                   {sizes.map((s) => (
                     <Field key={s}>
@@ -263,9 +286,6 @@ function CalculatorInner() {
                     </Field>
                   ))}
                 </div>
-                <Typography variant="bodySm" tone="muted">
-                  Всего изделий: {totalGarments}
-                </Typography>
               </div>
             )}
 
@@ -295,7 +315,7 @@ function CalculatorInner() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="-mx-6 -mb-6 mt-1 flex flex-wrap gap-2 border-t bg-muted/20 px-6 py-4">
               <Button type="button" disabled={!ready || calcMutation.isPending} onClick={() => calcMutation.mutate()}>
                 {calcMutation.isPending ? 'Считаем…' : 'Рассчитать'}
               </Button>
@@ -316,24 +336,29 @@ function CalculatorInner() {
                 Создать заказ
               </Button>
             </div>
-
-            {(calcMutation.isError || createMutation.isError) && (
-              <Alert variant="destructive">
-                <AlertTitle>Ошибка</AlertTitle>
-                <AlertDescription>{errMessage(calcMutation.error ?? createMutation.error)}</AlertDescription>
-              </Alert>
-            )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:sticky lg:top-20">
           <CardHeader>
             <CardTitle>Результат</CardTitle>
             <CardDescription>Потребность, закупка и стоимость</CardDescription>
           </CardHeader>
           <CardContent>
-            {result ? <ResultView result={result} fabricById={fabricById} /> : (
-              <Typography tone="muted">Заполните параметры и нажмите «Рассчитать».</Typography>
+            {result ? (
+              <ResultView result={result} fabricById={fabricById} />
+            ) : (
+              <Empty className="border-0 p-6">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <HugeiconsIcon icon={Calculator01Icon} strokeWidth={2} />
+                  </EmptyMedia>
+                  <EmptyTitle>Результата пока нет</EmptyTitle>
+                  <EmptyDescription>
+                    Заполните параметры слева и нажмите «Рассчитать» — здесь появятся объём закупки и стоимость.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
           </CardContent>
         </Card>
@@ -344,7 +369,26 @@ function CalculatorInner() {
 
 function ResultView({ result, fabricById }: { result: CalcResult; fabricById: Map<string, FabricDto> }) {
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
+      <div className="rounded-xl border bg-muted/40 p-4">
+        <Typography variant="bodySm" tone="muted">
+          Итого закупка
+        </Typography>
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <Typography variant="h1" as="span" tone="primary" className="tnum">
+            {money(result.totalCostRub)}
+          </Typography>
+          <Typography variant="h4" as="span" tone="muted">
+            ₽
+          </Typography>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Badge variant="secondary">{result.totalGarments} изд.</Badge>
+          <Badge variant="secondary">резерв {Math.round(result.reservePct * 100)}%</Badge>
+          <Badge variant="outline">перекос ×{fmt(result.perekos, 3)}</Badge>
+        </div>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -357,16 +401,22 @@ function ResultView({ result, fabricById }: { result: CalcResult; fabricById: Ma
         <TableBody>
           {result.fabrics.map((f) => (
             <TableRow key={f.fabricId}>
-              <TableCell>{formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId}</TableCell>
+              <TableCell className="whitespace-normal">
+                {formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId}
+              </TableCell>
               <TableCell>
                 {fmt(f.needKg)} кг
                 <br />
-                <span className="text-muted-foreground">{fmt(f.needM)} м</span>
+                <Typography variant="bodyXs" as="span" tone="muted">
+                  {fmt(f.needM)} м
+                </Typography>
               </TableCell>
               <TableCell>
                 {fmt(f.orderQty, 0)} {f.rollUnit}
                 <br />
-                <span className="text-muted-foreground">{f.rollsCount} рул. × {f.rollSize}</span>
+                <Typography variant="bodyXs" as="span" tone="muted">
+                  {f.rollsCount} рул. × {f.rollSize}
+                </Typography>
               </TableCell>
               <TableCell>{money(f.costRub)} ₽</TableCell>
             </TableRow>
@@ -374,15 +424,8 @@ function ResultView({ result, fabricById }: { result: CalcResult; fabricById: Ma
         </TableBody>
       </Table>
 
-      <Separator />
-      <div className="flex items-center justify-between">
-        <Typography variant="control" tone="muted">
-          Итого ({result.totalGarments} изд., резерв {Math.round(result.reservePct * 100)}%)
-        </Typography>
-        <Typography variant="h4">{money(result.totalCostRub)} ₽</Typography>
-      </div>
-      <Typography variant="bodySm" tone="muted">
-        Перекос размерного ряда: ×{fmt(result.perekos, 4)} · взвеш. кол-во: {fmt(result.sizeWeightedQty, 2)}
+      <Typography variant="bodyXs" tone="muted">
+        Взвешенное количество: {fmt(result.sizeWeightedQty, 2)}
       </Typography>
     </div>
   )
@@ -405,16 +448,39 @@ function OrdersInner() {
 
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
-      <div className="flex items-center justify-between">
-        <Typography variant="h1">Заказы</Typography>
-        <Button asChild>
-          <Link to="/">Новый расчёт</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Заказы"
+        description="Сохранённые расчёты и заказы. Откройте запись, чтобы внести факт по производству."
+        actions={
+          <Button asChild>
+            <Link to="/">
+              <HugeiconsIcon icon={Calculator01Icon} strokeWidth={2} />
+              Новый расчёт
+            </Link>
+          </Button>
+        }
+      />
       {ordersQuery.isLoading ? (
-        <Spinner />
+        <Card>
+          <CardContent className="grid gap-3 pt-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </CardContent>
+        </Card>
       ) : orders.length === 0 ? (
-        <Typography tone="muted">Заказов пока нет. Создайте первый на экране расчёта.</Typography>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={Invoice01Icon} strokeWidth={2} />
+            </EmptyMedia>
+            <EmptyTitle>Заказов пока нет</EmptyTitle>
+            <EmptyDescription>Создайте первый расчёт на экране калькулятора.</EmptyDescription>
+          </EmptyHeader>
+          <Button asChild>
+            <Link to="/">Перейти к расчёту</Link>
+          </Button>
+        </Empty>
       ) : (
         <Card>
           <CardContent className="pt-6">
@@ -500,24 +566,30 @@ function OrderDetailInner() {
     },
     onSuccess: () => {
       setFacts({})
+      toast.success('Факт сохранён')
       void queryClient.invalidateQueries({ queryKey: ['orders', id] })
     },
+    onError: (error) => toast.error('Не удалось сохранить факт', { description: errMessage(error) }),
   })
 
   if (orderQuery.isLoading) {
-    return (
-      <section className="mx-auto w-full max-w-6xl px-5 py-16">
-        <Spinner />
-      </section>
-    )
+    return <PageSkeleton />
   }
   if (!order) {
     return (
       <section className="mx-auto grid w-full max-w-6xl gap-4 px-5 py-16">
-        <Typography variant="h1">Заказ не найден</Typography>
-        <Button asChild className="w-fit">
-          <Link to="/orders">К списку</Link>
-        </Button>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={Invoice01Icon} strokeWidth={2} />
+            </EmptyMedia>
+            <EmptyTitle>Заказ не найден</EmptyTitle>
+            <EmptyDescription>Возможно, запись была удалена или ссылка устарела.</EmptyDescription>
+          </EmptyHeader>
+          <Button asChild>
+            <Link to="/orders">К списку заказов</Link>
+          </Button>
+        </Empty>
       </section>
     )
   }
@@ -537,20 +609,27 @@ function OrderDetailInner() {
 
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
-      <div className="flex items-center justify-between">
-        <div className="grid gap-1">
-          <Typography variant="h1">Заказ</Typography>
-          <Typography tone="muted">
+      <PageHeader
+        title="Заказ"
+        description={
+          <span className="inline-flex items-center gap-2">
             <Badge variant={order.mode === 'ORDER' ? 'default' : 'outline'}>
               {order.mode === 'ORDER' ? 'Заказ' : 'Тест'}
-            </Badge>{' '}
-            · {new Date(order.createdAt).toLocaleString('ru-RU')}
-          </Typography>
-        </div>
-        <Button asChild variant="outline">
-          <Link to="/orders">К списку</Link>
-        </Button>
-      </div>
+            </Badge>
+            <Typography variant="bodySm" as="span" tone="muted">
+              {new Date(order.createdAt).toLocaleString('ru-RU')}
+            </Typography>
+          </span>
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/orders">
+              <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+              К списку
+            </Link>
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -631,12 +710,6 @@ function OrderDetailInner() {
               {addFactMutation.isPending ? 'Сохраняем…' : 'Сохранить факт'}
             </Button>
           </div>
-          {addFactMutation.isError && (
-            <Alert variant="destructive">
-              <AlertTitle>Ошибка</AlertTitle>
-              <AlertDescription>{errMessage(addFactMutation.error)}</AlertDescription>
-            </Alert>
-          )}
         </CardContent>
       </Card>
 
@@ -666,7 +739,7 @@ function OrderDetailInner() {
                       {f.deviation === null ? (
                         '—'
                       ) : (
-                        <Badge variant={f.deviation > 0 ? 'destructive' : 'default'}>
+                        <Badge variant={f.deviation > 0 ? 'destructive' : 'success'}>
                           {f.deviation > 0 ? '+' : ''}
                           {fmt(f.deviation * 100, 1)}%
                         </Badge>

@@ -24,6 +24,8 @@
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
+    --color-success-foreground: var(--success-foreground);
+    --color-success: var(--success);
     --color-destructive: var(--destructive);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
@@ -48,39 +50,46 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * Design direction: "Свежий слейт" / Precise B2B.
+ * Cool slate neutrals + one calm blue accent, semantic emerald success / red error.
+ * Page canvas is a cool slate-50; cards are pure white + soft ring/shadow → clean layering.
+ */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
+    --background: oklch(0.971 0.006 250);
+    --foreground: oklch(0.21 0.04 265);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    --card-foreground: oklch(0.21 0.04 265);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    --popover-foreground: oklch(0.21 0.04 265);
+    --primary: oklch(0.55 0.18 258);
+    --primary-foreground: oklch(0.985 0.002 250);
+    --secondary: oklch(0.968 0.007 250);
+    --secondary-foreground: oklch(0.28 0.04 260);
+    --muted: oklch(0.968 0.007 250);
+    --muted-foreground: oklch(0.553 0.041 257);
+    --accent: oklch(0.953 0.013 256);
+    --accent-foreground: oklch(0.28 0.04 260);
+    --destructive: oklch(0.585 0.22 27.3);
+    --success: oklch(0.6 0.13 162);
+    --success-foreground: oklch(0.985 0.002 250);
+    --border: oklch(0.925 0.013 256);
+    --input: oklch(0.925 0.013 256);
+    --ring: oklch(0.55 0.18 258);
+    --chart-1: oklch(0.55 0.18 258);
+    --chart-2: oklch(0.62 0.15 230);
+    --chart-3: oklch(0.68 0.12 195);
+    --chart-4: oklch(0.7 0.13 162);
+    --chart-5: oklch(0.5 0.16 280);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: oklch(0.985 0.003 250);
+    --sidebar-foreground: oklch(0.21 0.04 265);
+    --sidebar-primary: oklch(0.55 0.18 258);
+    --sidebar-primary-foreground: oklch(0.985 0.002 250);
+    --sidebar-accent: oklch(0.968 0.007 250);
+    --sidebar-accent-foreground: oklch(0.28 0.04 260);
+    --sidebar-border: oklch(0.925 0.013 256);
+    --sidebar-ring: oklch(0.55 0.18 258);
 }
 
 .dark {
@@ -99,6 +108,8 @@
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    --success: oklch(0.696 0.13 162);
+    --success-foreground: oklch(0.205 0 0);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
@@ -127,4 +138,15 @@
   html {
     @apply font-sans;
     }
+  /* Precision anchor: tables align numbers with tabular figures. */
+  table {
+    font-variant-numeric: tabular-nums;
+    }
+}
+
+/* Tabular figures for standalone numeric displays (totals, money, metrics).
+   Defined as a plain utility so it is exempt from the typography-policy lint
+   rule, which governs font/size utilities — not numeric variants. */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }

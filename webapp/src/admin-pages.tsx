@@ -1,3 +1,6 @@
+import { Add01Icon, Coins01Icon, PackageIcon, RulerIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import type { IconSvgElement } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type {
@@ -9,17 +12,21 @@ import type {
   SupplierFabricInput,
 } from '@web-app-demo/contracts'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
+import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
+import { PageHeader } from '@/components/page-header'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Separator } from '@/components/ui/separator'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Typography } from '@/components/ui/typography'
 import { ApiRequestError } from '@/lib/api'
@@ -38,30 +45,30 @@ function errMessage(error: unknown): string {
 
 const subNavLinkClass = cn(
   buttonVariants({ variant: 'ghost', size: 'sm' }),
-  'text-muted-foreground data-[status=active]:bg-secondary data-[status=active]:text-secondary-foreground data-[status=active]:hover:bg-secondary/80 data-[status=active]:hover:text-secondary-foreground'
+  'gap-1.5 text-muted-foreground data-[status=active]:bg-primary/10 data-[status=active]:text-primary data-[status=active]:hover:bg-primary/15 data-[status=active]:hover:text-primary'
 )
+
+const adminNav: { to: string; label: string; icon: IconSvgElement }[] = [
+  { to: '/admin/fabrics', label: 'Ткани', icon: RulerIcon },
+  { to: '/admin/suppliers', label: 'Поставщики', icon: Coins01Icon },
+  { to: '/admin/skus', label: 'SKU', icon: PackageIcon },
+]
 
 function AdminLayout({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
-      <div className="grid gap-2">
-        <Badge variant="outline" className="w-fit">
-          Справочники
-        </Badge>
-        <Typography variant="h1">{title}</Typography>
-        <Typography tone="muted">{description}</Typography>
-        <nav className="mt-2 flex flex-wrap items-center gap-2" aria-label="Admin">
-          <Link to="/admin/fabrics" className={subNavLinkClass}>
-            Ткани
-          </Link>
-          <Link to="/admin/suppliers" className={subNavLinkClass}>
-            Поставщики
-          </Link>
-          <Link to="/admin/skus" className={subNavLinkClass}>
-            SKU
-          </Link>
+      <PageHeader eyebrow="Справочники" title={title} description={description}>
+        <nav className="flex flex-wrap items-center gap-1.5" aria-label="Admin">
+          {adminNav.map((item) => (
+            <Link key={item.to} to={item.to} className={subNavLinkClass}>
+              <HugeiconsIcon icon={item.icon} strokeWidth={2} />
+              <Typography asChild variant="control" tone="current">
+                <span>{item.label}</span>
+              </Typography>
+            </Link>
+          ))}
         </nav>
-      </div>
+      </PageHeader>
       {children}
     </section>
   )
@@ -74,6 +81,30 @@ function ErrorAlert({ error }: { error: unknown }) {
       <AlertTitle>Ошибка</AlertTitle>
       <AlertDescription>{errMessage(error)}</AlertDescription>
     </Alert>
+  )
+}
+
+function TableSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="grid gap-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-10 w-full" />
+      ))}
+    </div>
+  )
+}
+
+function ListEmpty({ icon, title, description }: { icon: IconSvgElement; title: string; description: string }) {
+  return (
+    <Empty className="border-0 py-8">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <HugeiconsIcon icon={icon} strokeWidth={2} />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
 
@@ -224,6 +255,7 @@ export function FabricsAdminPage() {
     mutationFn: () => api.createFabric(formToFabricInput(createForm)),
     onSuccess: () => {
       setCreateForm(emptyFabricForm)
+      toast.success('Ткань добавлена')
       void invalidate()
     },
   })
@@ -231,22 +263,23 @@ export function FabricsAdminPage() {
     mutationFn: (id: string) => api.updateFabric(id, formToFabricInput(editForm)),
     onSuccess: () => {
       setEditId(null)
+      toast.success('Ткань обновлена')
       void invalidate()
     },
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteFabric(id),
-    onSuccess: () => void invalidate(),
+    onSuccess: () => {
+      toast.success('Ткань удалена')
+      void invalidate()
+    },
+    onError: (error) => toast.error('Не удалось удалить', { description: errMessage(error) }),
   })
 
   function startEdit(f: FabricDto) {
     setEditId(f.id)
     setEditForm(fabricToForm(f))
     updateMutation.reset()
-  }
-
-  function onDelete(f: FabricDto) {
-    if (window.confirm(`Удалить ткань «${f.name}»?`)) deleteMutation.mutate(f.id)
   }
 
   return (
@@ -258,7 +291,9 @@ export function FabricsAdminPage() {
         </CardHeader>
         <CardContent>
           {fabricsQuery.isLoading ? (
-            <Spinner />
+            <TableSkeleton />
+          ) : fabrics.length === 0 ? (
+            <ListEmpty icon={RulerIcon} title="Тканей пока нет" description="Добавьте первую ткань в форме ниже." />
           ) : (
             <Table>
               <TableHeader>
@@ -296,24 +331,22 @@ export function FabricsAdminPage() {
                     </TableCell>
                     <TableCell>{f.canonicalUnit}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex justify-end gap-1">
                         <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(f)}>
                           Изменить
                         </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(f)} disabled={deleteMutation.isPending}>
-                          Удалить
-                        </Button>
+                        <ConfirmDeleteButton
+                          title="Удалить ткань?"
+                          description={`«${f.name}» будет удалена из справочника.`}
+                          onConfirm={() => deleteMutation.mutate(f.id)}
+                          disabled={deleteMutation.isPending}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-          {deleteMutation.isError && (
-            <div className="pt-4">
-              <ErrorAlert error={deleteMutation.error} />
-            </div>
           )}
         </CardContent>
       </Card>
@@ -348,6 +381,7 @@ export function FabricsAdminPage() {
           <FabricFormFields form={createForm} setForm={setCreateForm} />
           <div>
             <Button type="button" disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
               {createMutation.isPending ? 'Добавляем…' : 'Добавить ткань'}
             </Button>
           </div>
@@ -438,6 +472,7 @@ export function SuppliersAdminPage() {
     mutationFn: () => api.createSupplier(formToSupplierInput(createForm)),
     onSuccess: () => {
       setCreateForm(emptySupplierForm)
+      toast.success('Поставщик добавлен')
       void invalidateSuppliers()
     },
   })
@@ -445,12 +480,17 @@ export function SuppliersAdminPage() {
     mutationFn: (id: string) => api.updateSupplier(id, formToSupplierInput(editForm)),
     onSuccess: () => {
       setEditId(null)
+      toast.success('Поставщик обновлён')
       void invalidateSuppliers()
     },
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteSupplier(id),
-    onSuccess: () => void invalidateSuppliers(),
+    onSuccess: () => {
+      toast.success('Поставщик удалён')
+      void invalidateSuppliers()
+    },
+    onError: (error) => toast.error('Не удалось удалить', { description: errMessage(error) }),
   })
 
   const addEdgeMutation = useMutation({
@@ -467,22 +507,23 @@ export function SuppliersAdminPage() {
       setEdgeFabricId('')
       setEdgePriceRub('')
       setEdgePriceUsd('')
+      toast.success('Цена сохранена')
       void invalidateEdges()
     },
   })
   const deleteEdgeMutation = useMutation({
     mutationFn: (id: string) => api.deleteSupplierFabric(id),
-    onSuccess: () => void invalidateEdges(),
+    onSuccess: () => {
+      toast.success('Цена удалена')
+      void invalidateEdges()
+    },
+    onError: (error) => toast.error('Не удалось удалить', { description: errMessage(error) }),
   })
 
   function startEdit(s: SupplierDto) {
     setEditId(s.id)
     setEditForm(supplierToForm(s))
     updateMutation.reset()
-  }
-
-  function onDelete(s: SupplierDto) {
-    if (window.confirm(`Удалить поставщика «${s.name}»?`)) deleteMutation.mutate(s.id)
   }
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedId) ?? null
@@ -497,7 +538,9 @@ export function SuppliersAdminPage() {
         </CardHeader>
         <CardContent>
           {suppliersQuery.isLoading ? (
-            <Spinner />
+            <TableSkeleton />
+          ) : suppliers.length === 0 ? (
+            <ListEmpty icon={Coins01Icon} title="Поставщиков пока нет" description="Добавьте первого поставщика в форме ниже." />
           ) : (
             <Table>
               <TableHeader>
@@ -517,27 +560,25 @@ export function SuppliersAdminPage() {
                     <TableCell>{s.country ?? '—'}</TableCell>
                     <TableCell>{s.leadTimeDays === null ? '—' : `${s.leadTimeDays} дн.`}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex justify-end gap-1">
                         <Button type="button" size="sm" variant={selectedId === s.id ? 'secondary' : 'ghost'} onClick={() => setSelectedId(s.id)}>
                           Цены
                         </Button>
                         <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(s)}>
                           Изменить
                         </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => onDelete(s)} disabled={deleteMutation.isPending}>
-                          Удалить
-                        </Button>
+                        <ConfirmDeleteButton
+                          title="Удалить поставщика?"
+                          description={`«${s.name}» будет удалён вместе со связями цен.`}
+                          onConfirm={() => deleteMutation.mutate(s.id)}
+                          disabled={deleteMutation.isPending}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-          {deleteMutation.isError && (
-            <div className="pt-4">
-              <ErrorAlert error={deleteMutation.error} />
-            </div>
           )}
         </CardContent>
       </Card>
@@ -570,6 +611,7 @@ export function SuppliersAdminPage() {
           <SupplierFormFields form={createForm} setForm={setCreateForm} />
           <div>
             <Button type="button" disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
               {createMutation.isPending ? 'Добавляем…' : 'Добавить поставщика'}
             </Button>
           </div>
@@ -609,9 +651,14 @@ export function SuppliersAdminPage() {
                       <TableCell>{sf.priceRub ?? '—'}</TableCell>
                       <TableCell>{sf.priceUsd ?? '—'}</TableCell>
                       <TableCell>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => deleteEdgeMutation.mutate(sf.id)} disabled={deleteEdgeMutation.isPending}>
-                          Удалить
-                        </Button>
+                        <div className="flex justify-end">
+                          <ConfirmDeleteButton
+                            title="Удалить цену?"
+                            description="Связь ткань → цена будет удалена."
+                            onConfirm={() => deleteEdgeMutation.mutate(sf.id)}
+                            disabled={deleteEdgeMutation.isPending}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -647,7 +694,7 @@ export function SuppliersAdminPage() {
                 </Button>
               </div>
             </div>
-            <ErrorAlert error={addEdgeMutation.error ?? deleteEdgeMutation.error} />
+            <ErrorAlert error={addEdgeMutation.error} />
           </CardContent>
         </Card>
       )}
@@ -705,6 +752,7 @@ export function SkusAdminPage() {
     mutationFn: () => api.createSku(formToSkuInput(createForm)),
     onSuccess: () => {
       setCreateForm(emptySkuForm)
+      toast.success('SKU добавлен')
       void invalidateSkus()
     },
   })
@@ -712,8 +760,10 @@ export function SkusAdminPage() {
     mutationFn: (id: string) => api.deleteSku(id),
     onSuccess: () => {
       setSelectedId(null)
+      toast.success('SKU удалён')
       void invalidateSkus()
     },
+    onError: (error) => toast.error('Не удалось удалить', { description: errMessage(error) }),
   })
   const savePassportMutation = useMutation({
     mutationFn: (skuId: string) => {
@@ -735,7 +785,10 @@ export function SkusAdminPage() {
       }
       return api.upsertPassport(skuId, input)
     },
-    onSuccess: () => void invalidateSkus(),
+    onSuccess: () => {
+      toast.success('Паспорт сохранён')
+      void invalidateSkus()
+    },
   })
 
   function selectSku(sku: SkuDto) {
@@ -763,10 +816,6 @@ export function SkusAdminPage() {
     }
   }
 
-  function onDeleteSku(sku: SkuDto) {
-    if (window.confirm(`Удалить SKU «${sku.name}»?`)) deleteMutation.mutate(sku.id)
-  }
-
   function toggleFabric(idx: number, fabricId: string, on: boolean) {
     setComponents((prev) =>
       prev.map((c, i) => {
@@ -792,7 +841,9 @@ export function SkusAdminPage() {
         </CardHeader>
         <CardContent>
           {skusQuery.isLoading ? (
-            <Spinner />
+            <TableSkeleton />
+          ) : skus.length === 0 ? (
+            <ListEmpty icon={PackageIcon} title="Моделей пока нет" description="Добавьте первую модель (SKU) в форме ниже." />
           ) : (
             <Table>
               <TableHeader>
@@ -813,27 +864,25 @@ export function SkusAdminPage() {
                     <TableCell>{s.category}</TableCell>
                     <TableCell>{s.fit ?? '—'}</TableCell>
                     <TableCell>
-                      <Badge variant={s.passport ? 'default' : 'outline'}>{s.passport ? 'да' : 'нет'}</Badge>
+                      <Badge variant={s.passport ? 'success' : 'outline'}>{s.passport ? 'да' : 'нет'}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex justify-end gap-1">
                         <Button type="button" size="sm" variant={selectedId === s.id ? 'secondary' : 'ghost'} onClick={() => selectSku(s)}>
                           Паспорт
                         </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => onDeleteSku(s)} disabled={deleteMutation.isPending}>
-                          Удалить
-                        </Button>
+                        <ConfirmDeleteButton
+                          title="Удалить SKU?"
+                          description={`Модель «${s.name}» и её паспорт будут удалены.`}
+                          onConfirm={() => deleteMutation.mutate(s.id)}
+                          disabled={deleteMutation.isPending}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-          {deleteMutation.isError && (
-            <div className="pt-4">
-              <ErrorAlert error={deleteMutation.error} />
-            </div>
           )}
         </CardContent>
       </Card>
@@ -863,6 +912,7 @@ export function SkusAdminPage() {
           </div>
           <div>
             <Button type="button" disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
               {createMutation.isPending ? 'Добавляем…' : 'Добавить SKU'}
             </Button>
           </div>
@@ -884,8 +934,8 @@ export function SkusAdminPage() {
               </Field>
             </div>
 
-            <div className="grid gap-3">
-              <Typography variant="control" tone="muted">
+            <div className="grid gap-3 rounded-xl border bg-muted/20 p-4">
+              <Typography variant="h6" as="div">
                 Коэффициенты размеров
               </Typography>
               <div className="grid gap-2">
@@ -926,19 +976,18 @@ export function SkusAdminPage() {
               </div>
               <div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setSizeCoefs((prev) => [...prev, { size: '', coef: '' }])}>
-                  + Размер
+                  <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+                  Размер
                 </Button>
               </div>
             </div>
 
-            <Separator />
-
             <div className="grid gap-4">
-              <Typography variant="control" tone="muted">
+              <Typography variant="h6" as="div">
                 Компоненты
               </Typography>
               {components.map((c, idx) => (
-                <div key={idx} className="grid gap-4 rounded-md border p-4">
+                <div key={idx} className="grid gap-4 rounded-xl border bg-muted/20 p-4">
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <Field>
                       <FieldLabel>Роль</FieldLabel>
@@ -988,7 +1037,8 @@ export function SkusAdminPage() {
               ))}
               <div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setComponents((prev) => [...prev, emptyComponent()])}>
-                  + Компонент
+                  <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+                  Компонент
                 </Button>
               </div>
             </div>
