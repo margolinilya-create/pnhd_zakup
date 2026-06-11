@@ -118,6 +118,29 @@ export function CalculatorPage() {
   )
 }
 
+const POPULAR_WEIGHTS: Record<string, number> = {
+  XS: 5, S: 15, M: 30, L: 30, XL: 15, XXL: 5, '3XL': 3, '4XL': 2, '5XL': 1, '6XL': 1,
+}
+
+// Split a total batch across sizes by weights, rounding so the parts sum exactly to
+// total (largest-remainder method).
+function distributeBatch(total: number, sizes: string[], weights: Record<string, number>): Record<string, number> {
+  const ws = sizes.map((s) => Math.max(0, weights[s] ?? 0))
+  const sum = ws.reduce((a, b) => a + b, 0)
+  if (total <= 0 || sum <= 0) return {}
+  const raw = sizes.map((_, i) => (total * ws[i]) / sum)
+  const out: Record<string, number> = {}
+  sizes.forEach((s, i) => {
+    out[s] = Math.floor(raw[i])
+  })
+  let remainder = total - sizes.reduce((a, s) => a + out[s], 0)
+  const order = raw.map((x, i) => ({ i, frac: x - Math.floor(x) })).sort((a, b) => b.frac - a.frac)
+  for (let k = 0; k < order.length && remainder > 0; k++, remainder--) {
+    out[sizes[order[k].i]] += 1
+  }
+  return out
+}
+
 function CalculatorInner() {
   const { api } = useAuth()
   const navigate = useNavigate()
@@ -136,6 +159,7 @@ function CalculatorInner() {
   const [currency, setCurrency] = useState<'RUB' | 'USD'>(loaded?.currency ?? 'RUB')
   const [fxRate, setFxRate] = useState(loaded?.fxRate ?? 95)
   const [supplierMode, setSupplierMode] = useState<SupplierPickMode>(loaded?.supplierMode ?? 'cheapest')
+  const [batchQty, setBatchQty] = useState('')
 
   const skus = skusQuery.data ?? []
   const supplierFabrics = sfQuery.data ?? []
@@ -210,6 +234,14 @@ function CalculatorInner() {
   function onChangeSupplierMode(mode: SupplierPickMode) {
     setSupplierMode(mode)
     reapplySuppliers(mode, currency, fxRate)
+  }
+
+  // Quick fill: distribute a total batch across the model's sizes by a chosen ratio.
+  function applyBatch(kind: 'even' | 'popular') {
+    const total = Math.floor(Number(batchQty))
+    if (!(total > 0)) return
+    const weights = kind === 'even' ? Object.fromEntries(sizes.map((s) => [s, 1])) : POPULAR_WEIGHTS
+    setSizeQ(distributeBatch(total, sizes, weights))
   }
 
   const buildInput = () => ({
@@ -431,6 +463,37 @@ function CalculatorInner() {
                 <div className="flex items-center justify-between gap-2">
                   <FieldLabel>Размерный ряд (кол-во изделий)</FieldLabel>
                   <Badge variant="outline">Всего: {totalGarments}</Badge>
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="grid gap-1.5">
+                    <FieldLabel>Партия, шт</FieldLabel>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="w-32"
+                      value={batchQty}
+                      onChange={(e) => setBatchQty(e.target.value)}
+                      placeholder="напр. 300"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!(Number(batchQty) > 0)}
+                    onClick={() => applyBatch('even')}
+                  >
+                    Равномерно
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!(Number(batchQty) > 0)}
+                    onClick={() => applyBatch('popular')}
+                  >
+                    Ходовая
+                  </Button>
                 </div>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
                   {sizes.map((s) => (
