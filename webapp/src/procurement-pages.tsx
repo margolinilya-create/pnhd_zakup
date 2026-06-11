@@ -2,7 +2,7 @@ import { ArrowDown01Icon, ArrowLeft01Icon, Calculator01Icon, Invoice01Icon } fro
 import { HugeiconsIcon } from '@hugeicons/react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import type { CalcRequest, CalcResult, FabricDto, SupplierFabricDto } from '@web-app-demo/contracts'
+import type { CalcRequest, CalcResult, FabricDto, OrderSummaryDto, SupplierFabricDto } from '@web-app-demo/contracts'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -898,10 +898,20 @@ export function OrdersPage() {
   )
 }
 
+function orderMatches(o: OrderSummaryDto, q: string): boolean {
+  const s = q.trim().toLowerCase()
+  if (!s) return true
+  const modeLabel = o.mode === 'ORDER' ? 'заказ' : 'тест'
+  const date = new Date(o.createdAt).toLocaleDateString('ru-RU')
+  return [o.skuName ?? o.skuId, modeLabel, date].some((v) => v.toLowerCase().includes(s))
+}
+
 function OrdersInner() {
   const { api } = useAuth()
   const ordersQuery = useQuery({ queryKey: ['orders'], queryFn: () => api.listOrders() })
   const orders = ordersQuery.data ?? []
+  const [query, setQuery] = useState('')
+  const filtered = orders.filter((o) => orderMatches(o, query))
 
   return (
     <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
@@ -950,7 +960,18 @@ function OrdersInner() {
         </Empty>
       ) : (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="grid gap-4 pt-6">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск: модель, режим, дата…"
+              className="max-w-sm"
+            />
+            {filtered.length === 0 ? (
+              <Typography variant="bodySm" tone="muted">
+                Ничего не найдено
+              </Typography>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -963,7 +984,7 @@ function OrdersInner() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((o) => (
+                {filtered.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell>
                       <Badge variant={o.mode === 'ORDER' ? 'default' : 'outline'}>
@@ -985,6 +1006,7 @@ function OrdersInner() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       )}
