@@ -11,7 +11,7 @@ import type {
   SupplierDto,
   SupplierFabricInput,
 } from '@web-app-demo/contracts'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
@@ -36,6 +36,17 @@ import { cn } from '@/lib/utils'
 
 const SIZE_LADDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const ROLE_OPTIONS = ['MAIN', 'RIB', 'TRIM', 'OTHER'] as const
+
+// The inline edit/passport panel renders below a long table; on the long lists
+// (24 fabrics, 41 SKUs) it lands off-screen, so opening it looks like a no-op.
+// Scroll it into view when it opens.
+function useScrollOnOpen(id: string, open: boolean) {
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+    return () => clearTimeout(t)
+  }, [id, open])
+}
 
 function errMessage(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message
@@ -248,6 +259,7 @@ export function FabricsAdminPage() {
   const [createForm, setCreateForm] = useState<FabricForm>(emptyFabricForm)
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<FabricForm>(emptyFabricForm)
+  useScrollOnOpen('fabric-edit', editId !== null)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['fabrics'] })
 
@@ -352,7 +364,7 @@ export function FabricsAdminPage() {
       </Card>
 
       {editId && (
-        <Card>
+        <Card id="fabric-edit">
           <CardHeader>
             <CardTitle>Редактирование ткани</CardTitle>
             <CardDescription>Усадка вводится в процентах (например, 6 = 6%).</CardDescription>
@@ -459,6 +471,7 @@ export function SuppliersAdminPage() {
   const [createForm, setCreateForm] = useState<SupplierForm>(emptySupplierForm)
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<SupplierForm>(emptySupplierForm)
+  useScrollOnOpen('supplier-edit', editId !== null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [edgeFabricId, setEdgeFabricId] = useState('')
@@ -584,7 +597,7 @@ export function SuppliersAdminPage() {
       </Card>
 
       {editId && (
-        <Card>
+        <Card id="supplier-edit">
           <CardHeader>
             <CardTitle>Редактирование поставщика</CardTitle>
           </CardHeader>
@@ -745,6 +758,7 @@ export function SkusAdminPage() {
   const [baseSize, setBaseSize] = useState('M')
   const [sizeCoefs, setSizeCoefs] = useState<SizeCoef[]>([])
   const [components, setComponents] = useState<ComponentForm[]>([])
+  useScrollOnOpen('sku-passport', selectedId !== null)
 
   const invalidateSkus = () => queryClient.invalidateQueries({ queryKey: ['skus'] })
 
@@ -921,7 +935,7 @@ export function SkusAdminPage() {
       </Card>
 
       {selectedSku && (
-        <Card>
+        <Card id="sku-passport">
           <CardHeader>
             <CardTitle>Паспорт: {selectedSku.name}</CardTitle>
             <CardDescription>Базовый размер, коэффициенты размеров и компоненты. Потери вводятся в %.</CardDescription>
