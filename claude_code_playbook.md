@@ -3,7 +3,9 @@
 Фундамент: https://github.com/di-sukharev/vibe
 Стек: Bun + Hono + Prisma + PostgreSQL (backend) · React + Vite + TanStack (web) · Zod-контракты в `packages/contracts` · **БД — Supabase (managed Postgres, Session Pooler)**.
 
-> Инфра обновлена относительно исходного плейбука: вместо локального Docker-Postgres — **Supabase**, фронт деплоится на **Vercel**. Актуальные детали — `PROJECT_CONTEXT.md` §2 и `docs/LOCAL_DATABASE.md`. Команды ниже приведены под Supabase.
+> Инфра обновлена относительно исходного плейбука: вместо локального Docker-Postgres — **Supabase**, фронт **и backend** деплоятся на **Vercel**. Актуальные детали — `PROJECT_CONTEXT.md` §2 и `docs/LOCAL_DATABASE.md`. Команды ниже приведены под Supabase.
+
+> **СТАТУС (2026-06): этот плейбук — исторический.** Все фазы 0–6 завершены, MVP в проде (webapp + API на Vercel, backend захостен). Текущее состояние, недавние доработки по фидбэку менеджера и процесс миграций Prisma 7 — в `PROJECT_CONTEXT.md` §2a (источник истины по «что сейчас»). Плейбук оставлен как запись интейка и порядка постройки.
 
 Workflow: bulletproof (фазы → гейты → коммит → следующая фаза в свежем контексте).
 
@@ -65,7 +67,7 @@ claude
 - Активные поверхности: web + backend/API (full-stack). mobile и landing — отложены (поставь deferred-заметки в их README, как требует шаблон).
 - Нужны: аккаунты/auth (берём JWT-auth шаблона как есть), персистентность (PostgreSQL). НЕ нужны: загрузка файлов, медиа, платежи, real-time/WebSocket.
 - Роли: добавь в модель User поле role: enum(TECHNOLOGIST, PURCHASER, OPERATOR, ANALYST), дефолт PURCHASER. Полноценный RBAC сделаем в поздней фазе — сейчас только поле.
-- БД — Supabase (managed Postgres), без локального Docker. Подключение через Session Pooler, строки/пароль — в backend/.env (см. docs/LOCAL_DATABASE.md). Фронт (webapp) уже задеплоен на Vercel; backend пока не хостим (TBD). Yandex Cloud — задокументированная альтернатива (docs/YANDEX_CLOUD.md), не настраивать.
+- БД — Supabase (managed Postgres), без локального Docker. Подключение через Session Pooler, строки/пароль — в backend/.env (см. docs/LOCAL_DATABASE.md). Фронт (webapp) уже задеплоен на Vercel; ~~backend пока не хостим (TBD)~~ → **backend тоже захостен на Vercel** (`pnhd-zakup-api`, сделано позже). Yandex Cloud — задокументированная альтернатива (docs/YANDEX_CLOUD.md), не настраивать.
 - Expo/EAS/Maestro не настраивать.
 
 Сделай: bun install; создай backend/.env из .env.example со сгенерированным локальным JWT_SECRET (не коммить и не печатай секрет) и строками подключения к Supabase (Session Pooler, схемы public/app_test — см. docs/LOCAL_DATABASE.md); прогони prisma:deploy против Supabase; запусти bun run typecheck и bun run test:backend; переименуй package.json под procurement-calc; зафиксируй в README выбранные поверхности и отложенные; удали Bootstrap-Only блоки из AGENTS.md и CLAUDE.md.

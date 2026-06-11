@@ -6,7 +6,17 @@
 
 A full-stack starter for web and backend products: one repository with a Bun/Hono backend, a React CSR browser client (`webapp`), an Astro SSG/SSR site (`website`), and shared API contracts. The runnable Expo mobile template lives on the `mobile` branch so the default branch stays focused on webapp, backend, website, infrastructure, and shared contracts.
 
-> **This is an installed project (pnhd-zakup), not a fresh template.** See **[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)** for the product (garment-procurement calculator) and the actual infrastructure, which **overrides the template defaults below**: the database is **Supabase** (managed Postgres — see [docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md)), there is **no local Docker Postgres**, and the frontend deploys to **Vercel**. The Docker/DigitalOcean/Yandex instructions in this README are the template's original path, kept as reference/alternative.
+> **This is an installed, live project (pnhd-zakup) — not a fresh template.** It is a **garment-procurement calculator**; see **[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)** first (product, architecture, current state, decisions). The actual infrastructure **overrides the template defaults below** and the DigitalOcean/Yandex/Docker material further down is the template's original path, kept only as reference.
+
+## This project at a glance
+
+- **Live:** webapp → https://pnhd-zakup-webapp.vercel.app · API → https://pnhd-zakup-api.vercel.app — both on **Vercel**, auto-deploy from `master`.
+- **Database:** **Supabase** managed Postgres via the Session Pooler ([docs/LOCAL_DATABASE.md](docs/LOCAL_DATABASE.md)). **No local Docker Postgres.** Tests use the `app_test` schema in the same DB.
+- **Auth:** intentionally **disabled on `/api/*`** for the open demo (re-add `requireAuth()` + Supabase RLS before real production).
+- **Domain truth:** [specs/tz-calculator.md](specs/tz-calculator.md). Shared engine + Zod contracts in [packages/contracts](packages/contracts).
+- **Deploy:** push to `master` (Vercel rebuilds both projects). **DB migrations are manual** — see below; Vercel does not run them.
+- **DB migrations (Prisma 7 + Supabase Pooler):** do **not** use `migrate dev` (shadow-DB fails on the pooler). Edit `schema.prisma`, then `bunx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` into a new `backend/prisma/migrations/<ts>_<name>/migration.sql`, then `bun run --cwd backend prisma:deploy` (applies to prod `public`). `app_test` is migrated automatically by `bun run --cwd backend test:integration`. Keep migrations additive/back-compatible.
+- **Validate:** `bun run typecheck` · `bun run test` (contracts + backend unit/integration + webapp) · `bun run e2e:webapp`.
 
 ## Agent Intake Checklist Before Installing
 
