@@ -152,6 +152,10 @@ export const orderDtoSchema = z.object({
   sizeBreakdown: z.record(z.string(), z.number()),
   reservePct: z.number(),
   defectPct: z.number().default(0),
+  // componentId -> chosen fabric+supplier, for re-running a saved order in the calculator
+  componentFabricMap: z
+    .record(z.string(), z.object({ fabricId: z.string(), supplierId: z.string() }))
+    .default({}),
   currency: priceCurrencySchema,
   fxRate: z.number(),
   result: calcResultSchema,

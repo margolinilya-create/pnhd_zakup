@@ -456,6 +456,7 @@ function toSkuDto(s: {
 
 function toOrderDto(order: {
   id: string; mode: 'TEST' | 'ORDER'; skuId: string; sizeBreakdown: unknown; reservePct: number; defectPct: number
+  componentFabricMap: unknown
   priceCurrency: 'RUB' | 'USD'; fxRate: number; result: unknown; createdAt: Date
   facts: Array<{
     id: string; fabricId: string; actualConsumed: number; wasteFabric: number; wasteSewing: number
@@ -481,6 +482,7 @@ function toOrderDto(order: {
     id: order.id, mode: order.mode, skuId: order.skuId,
     sizeBreakdown: order.sizeBreakdown as Record<string, number>, reservePct: order.reservePct,
     defectPct: order.defectPct,
+    componentFabricMap: order.componentFabricMap as Record<string, { fabricId: string; supplierId: string }>,
     currency: order.priceCurrency, fxRate: order.fxRate, result, createdAt: order.createdAt.toISOString(), facts,
   }
 }

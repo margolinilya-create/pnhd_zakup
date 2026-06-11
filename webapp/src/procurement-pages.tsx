@@ -1121,6 +1121,7 @@ export function OrderDetailPage() {
 
 function OrderDetailInner() {
   const { api } = useAuth()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = useParams({ strict: false }) as { id?: string }
   const id = params.id ?? ''
@@ -1132,6 +1133,23 @@ function OrderDetailInner() {
   const fabricById = useMemo(() => new Map((fabricsQuery.data ?? []).map((f) => [f.id, f])), [fabricsQuery.data])
 
   const [facts, setFacts] = useState<Record<string, FactInput>>({})
+
+  // Re-run a saved order: prefill the calculator (via its localStorage memory) and open it.
+  function repeatOrder() {
+    if (!order) return
+    saveCalcState({
+      skuId: order.skuId,
+      selections: order.componentFabricMap,
+      sizeQ: order.sizeBreakdown,
+      reservePct: order.reservePct,
+      defectPct: order.defectPct,
+      currency: order.currency,
+      fxRate: order.fxRate,
+      supplierMode: 'manual',
+    })
+    toast.success('Заказ скопирован в калькулятор — поменяйте количество и сохраните')
+    navigate({ to: '/' })
+  }
 
   const addFactMutation = useMutation({
     mutationFn: () => {
@@ -1209,12 +1227,18 @@ function OrderDetailInner() {
           </span>
         }
         actions={
-          <Button asChild variant="outline">
-            <Link to="/orders">
-              <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-              К списку
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={repeatOrder}>
+              <HugeiconsIcon icon={Calculator01Icon} strokeWidth={2} />
+              Повторить
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/orders">
+                <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+                К списку
+              </Link>
+            </Button>
+          </div>
         }
       />
 
