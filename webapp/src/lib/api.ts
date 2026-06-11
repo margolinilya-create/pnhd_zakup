@@ -44,6 +44,7 @@ import {
   type SupplierDto,
   type SupplierFabricDto,
   type SupplierFabricInput,
+  type SupplierFabricUpdate,
   type SupplierInput,
   type SupplierUpdate,
 } from '@web-app-demo/contracts'
@@ -192,6 +193,9 @@ export class ApiClient {
 
   upsertSupplierFabric(input: SupplierFabricInput): Promise<SupplierFabricDto> {
     return this.request('/api/supplier-fabrics', supplierFabricResponseSchema, { method: 'POST', body: input, auth: true }).then((r) => r.supplierFabric)
+  }
+  updateSupplierFabric(id: string, input: SupplierFabricUpdate): Promise<SupplierFabricDto> {
+    return this.request(`/api/supplier-fabrics/${id}`, supplierFabricResponseSchema, { method: 'PUT', body: input, auth: true }).then((r) => r.supplierFabric)
   }
   async deleteSupplierFabric(id: string): Promise<void> {
     await this.rawRequest(`/api/supplier-fabrics/${id}`, { method: 'DELETE', auth: true })

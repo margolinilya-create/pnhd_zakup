@@ -9,6 +9,7 @@ import type {
   PassportInput,
   SkuDto,
   SupplierDto,
+  SupplierFabricDto,
   SupplierFabricInput,
 } from '@web-app-demo/contracts'
 import { useEffect, useState } from 'react'
@@ -477,6 +478,9 @@ export function SuppliersAdminPage() {
   const [edgeFabricId, setEdgeFabricId] = useState('')
   const [edgePriceRub, setEdgePriceRub] = useState('')
   const [edgePriceUsd, setEdgePriceUsd] = useState('')
+  const [editEdgeId, setEditEdgeId] = useState<string | null>(null)
+  const [editEdgeRub, setEditEdgeRub] = useState('')
+  const [editEdgeUsd, setEditEdgeUsd] = useState('')
 
   const invalidateSuppliers = () => queryClient.invalidateQueries({ queryKey: ['suppliers'] })
   const invalidateEdges = () => queryClient.invalidateQueries({ queryKey: ['supplier-fabrics'] })
@@ -532,6 +536,26 @@ export function SuppliersAdminPage() {
     },
     onError: (error) => toast.error('Не удалось удалить', { description: errMessage(error) }),
   })
+  const updateEdgeMutation = useMutation({
+    mutationFn: () =>
+      api.updateSupplierFabric(editEdgeId ?? '', {
+        priceRub: editEdgeRub.trim() ? Number(editEdgeRub) : null,
+        priceUsd: editEdgeUsd.trim() ? Number(editEdgeUsd) : null,
+      }),
+    onSuccess: () => {
+      setEditEdgeId(null)
+      toast.success('Цена обновлена')
+      void invalidateEdges()
+    },
+    onError: (error) => toast.error('Не удалось сохранить', { description: errMessage(error) }),
+  })
+
+  function startEditEdge(sf: SupplierFabricDto) {
+    setEditEdgeId(sf.id)
+    setEditEdgeRub(sf.priceRub != null ? String(sf.priceRub) : '')
+    setEditEdgeUsd(sf.priceUsd != null ? String(sf.priceUsd) : '')
+    updateEdgeMutation.reset()
+  }
 
   function startEdit(s: SupplierDto) {
     setEditId(s.id)
@@ -661,18 +685,44 @@ export function SuppliersAdminPage() {
                   selectedEdges.map((sf) => (
                     <TableRow key={sf.id}>
                       <TableCell>{formatFabricLabel(fabricById.get(sf.fabricId)) ?? sf.fabricId}</TableCell>
-                      <TableCell>{sf.priceRub ?? '—'}</TableCell>
-                      <TableCell>{sf.priceUsd ?? '—'}</TableCell>
-                      <TableCell>
-                        <div className="flex justify-end">
-                          <ConfirmDeleteButton
-                            title="Удалить цену?"
-                            description="Связь ткань → цена будет удалена."
-                            onConfirm={() => deleteEdgeMutation.mutate(sf.id)}
-                            disabled={deleteEdgeMutation.isPending}
-                          />
-                        </div>
-                      </TableCell>
+                      {editEdgeId === sf.id ? (
+                        <>
+                          <TableCell>
+                            <Input type="number" min={0} value={editEdgeRub} onChange={(e) => setEditEdgeRub(e.target.value)} className="h-8 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" min={0} value={editEdgeUsd} onChange={(e) => setEditEdgeUsd(e.target.value)} className="h-8 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button type="button" size="sm" disabled={updateEdgeMutation.isPending} onClick={() => updateEdgeMutation.mutate()}>
+                                {updateEdgeMutation.isPending ? 'Сохраняем…' : 'Сохранить'}
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => setEditEdgeId(null)}>
+                                Отмена
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell>{sf.priceRub ?? '—'}</TableCell>
+                          <TableCell>{sf.priceUsd ?? '—'}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button type="button" size="sm" variant="ghost" onClick={() => startEditEdge(sf)}>
+                                Изменить
+                              </Button>
+                              <ConfirmDeleteButton
+                                title="Удалить цену?"
+                                description="Связь ткань → цена будет удалена."
+                                onConfirm={() => deleteEdgeMutation.mutate(sf.id)}
+                                disabled={deleteEdgeMutation.isPending}
+                              />
+                            </div>
+                          </TableCell>
+                        </>
+                      )}
                     </TableRow>
                   ))
                 )}
