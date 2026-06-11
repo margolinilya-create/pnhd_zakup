@@ -56,7 +56,7 @@ export const supplierFabricDtoSchema = z.object({
 export const passportComponentDtoSchema = z.object({
   id: z.string(),
   role: componentRoleSchema,
-  name: z.string().nullable(),
+  name: z.string().nullish(), // tolerate version skew: an older backend omits this field entirely
   normBase: z.number(),
   normBaseMeters: z.number().nullable(),
   lossCut: z.number(),
