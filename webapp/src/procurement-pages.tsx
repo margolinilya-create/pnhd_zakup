@@ -1,9 +1,9 @@
 import { ArrowDown01Icon, ArrowLeft01Icon, Calculator01Icon, Invoice01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import type { CalcResult, FabricDto, SupplierFabricDto } from '@web-app-demo/contracts'
-import { useMemo, useState } from 'react'
+import type { CalcRequest, CalcResult, FabricDto, SupplierFabricDto } from '@web-app-demo/contracts'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { DataError } from '@/components/data-error'
@@ -72,6 +72,44 @@ function PageSkeleton() {
 
 type Selection = { fabricId: string; supplierId: string }
 
+const CALC_STORAGE_KEY = 'pnhd-calc-state-v1'
+
+type PersistedCalc = {
+  skuId: string
+  selections: Record<string, Selection>
+  sizeQ: Record<string, number>
+  reservePct: number
+  defectPct: number
+  currency: 'RUB' | 'USD'
+  fxRate: number
+  supplierMode: SupplierPickMode
+}
+
+function loadCalcState(): Partial<PersistedCalc> | null {
+  try {
+    const raw = localStorage.getItem(CALC_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Partial<PersistedCalc>) : null
+  } catch {
+    return null
+  }
+}
+
+function saveCalcState(state: PersistedCalc) {
+  try {
+    localStorage.setItem(CALC_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // ignore quota / unavailable storage
+  }
+}
+
+function clearCalcState() {
+  try {
+    localStorage.removeItem(CALC_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export function CalculatorPage() {
   return (
     <RequireAuth>
@@ -89,14 +127,15 @@ function CalculatorInner() {
   const sfQuery = useQuery({ queryKey: ['supplier-fabrics'], queryFn: () => api.listSupplierFabrics() })
   const suppliersQuery = useQuery({ queryKey: ['suppliers'], queryFn: () => api.listSuppliers() })
 
-  const [skuId, setSkuId] = useState('')
-  const [selections, setSelections] = useState<Record<string, Selection>>({})
-  const [sizeQ, setSizeQ] = useState<Record<string, number>>({})
-  const [reservePct, setReservePct] = useState(0.05)
-  const [defectPct, setDefectPct] = useState(0.05)
-  const [currency, setCurrency] = useState<'RUB' | 'USD'>('RUB')
-  const [fxRate, setFxRate] = useState(95)
-  const [supplierMode, setSupplierMode] = useState<SupplierPickMode>('cheapest')
+  const loaded = useMemo(() => loadCalcState(), [])
+  const [skuId, setSkuId] = useState(loaded?.skuId ?? '')
+  const [selections, setSelections] = useState<Record<string, Selection>>(loaded?.selections ?? {})
+  const [sizeQ, setSizeQ] = useState<Record<string, number>>(loaded?.sizeQ ?? {})
+  const [reservePct, setReservePct] = useState(loaded?.reservePct ?? 0.05)
+  const [defectPct, setDefectPct] = useState(loaded?.defectPct ?? 0.05)
+  const [currency, setCurrency] = useState<'RUB' | 'USD'>(loaded?.currency ?? 'RUB')
+  const [fxRate, setFxRate] = useState(loaded?.fxRate ?? 95)
+  const [supplierMode, setSupplierMode] = useState<SupplierPickMode>(loaded?.supplierMode ?? 'cheapest')
 
   const skus = skusQuery.data ?? []
   const supplierFabrics = sfQuery.data ?? []
@@ -107,6 +146,11 @@ function CalculatorInner() {
     () => new Map((suppliersQuery.data ?? []).map((s) => [s.id, s.name])),
     [suppliersQuery.data],
   )
+
+  // Persist the calculator inputs so a return visit restores the last session.
+  useEffect(() => {
+    saveCalcState({ skuId, selections, sizeQ, reservePct, defectPct, currency, fxRate, supplierMode })
+  }, [skuId, selections, sizeQ, reservePct, defectPct, currency, fxRate, supplierMode])
 
   const selectedSku = skus.find((s) => s.id === skuId) ?? null
   const components = selectedSku?.passport?.components ?? []
@@ -120,7 +164,6 @@ function CalculatorInner() {
 
   function onSelectSku(nextSkuId: string) {
     setSkuId(nextSkuId)
-    calcMutation.reset()
     const sku = skus.find((s) => s.id === nextSkuId)
     const nextSelections: Record<string, Selection> = {}
     for (const c of sku?.passport?.components ?? []) {
@@ -185,10 +228,6 @@ function CalculatorInner() {
     fxRate,
   })
 
-  const calcMutation = useMutation({
-    mutationFn: () => api.calc(buildInput()),
-    onError: (error) => toast.error('Не удалось рассчитать', { description: errMessage(error) }),
-  })
   const createMutation = useMutation({
     mutationFn: (mode: 'TEST' | 'ORDER') => api.createOrder({ ...buildInput(), mode }),
     onSuccess: (order) => {
@@ -204,7 +243,34 @@ function CalculatorInner() {
     totalGarments > 0 &&
     components.every((c) => selections[c.id]?.fabricId && selections[c.id]?.supplierId)
 
-  const result = calcMutation.data
+  // Live calculation: debounce the input, then auto-run /api/calc (no "Рассчитать" button).
+  const inputKey = JSON.stringify(buildInput())
+  const [debouncedKey, setDebouncedKey] = useState(inputKey)
+  useEffect(() => {
+    if (!ready) return
+    const timer = setTimeout(() => setDebouncedKey(inputKey), 400)
+    return () => clearTimeout(timer)
+  }, [inputKey, ready])
+
+  const calcQuery = useQuery({
+    queryKey: ['calc', debouncedKey],
+    queryFn: () => api.calc(JSON.parse(debouncedKey) as CalcRequest),
+    enabled: ready,
+    placeholderData: keepPreviousData,
+  })
+  const result = ready ? calcQuery.data : undefined
+
+  function clearAll() {
+    setSkuId('')
+    setSelections({})
+    setSizeQ({})
+    setReservePct(0.05)
+    setDefectPct(0.05)
+    setCurrency('RUB')
+    setFxRate(95)
+    setSupplierMode('cheapest')
+    clearCalcState()
+  }
 
   const refQueries = [skusQuery, fabricsQuery, sfQuery, suppliersQuery]
   const failedQuery = refQueries.find((q) => q.isError)
@@ -250,7 +316,7 @@ function CalculatorInner() {
           <CardContent className="grid gap-5">
             <Field>
               <FieldLabel>Модель (SKU)</FieldLabel>
-              <NativeSelect value={skuId} onChange={(e) => onSelectSku(e.target.value)}>
+              <NativeSelect value={selectedSku?.id ?? ''} onChange={(e) => onSelectSku(e.target.value)}>
                 <NativeSelectOption value="">— выберите модель —</NativeSelectOption>
                 {skus.map((s) => (
                   <NativeSelectOption key={s.id} value={s.id}>
@@ -435,9 +501,6 @@ function CalculatorInner() {
             </div>
 
             <div className="-mx-6 -mb-6 mt-1 flex flex-wrap gap-2 border-t bg-muted/20 px-6 py-4">
-              <Button type="button" disabled={!ready || calcMutation.isPending} onClick={() => calcMutation.mutate()}>
-                {calcMutation.isPending ? 'Считаем…' : 'Рассчитать'}
-              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -454,6 +517,9 @@ function CalculatorInner() {
               >
                 Создать заказ
               </Button>
+              <Button type="button" variant="ghost" className="ml-auto" onClick={clearAll}>
+                Очистить
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -464,9 +530,7 @@ function CalculatorInner() {
             <CardDescription>Потребность, закупка и стоимость</CardDescription>
           </CardHeader>
           <CardContent>
-            {result ? (
-              <ResultView result={result} fabricById={fabricById} />
-            ) : (
+            {!ready ? (
               <Empty className="border-0 p-6">
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
@@ -474,10 +538,26 @@ function CalculatorInner() {
                   </EmptyMedia>
                   <EmptyTitle>Результата пока нет</EmptyTitle>
                   <EmptyDescription>
-                    Заполните параметры слева и нажмите «Рассчитать» — здесь появятся объём закупки и стоимость.
+                    Выберите модель, ткани с поставщиками и размерный ряд — расчёт появится здесь автоматически.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
+            ) : calcQuery.isError ? (
+              <DataError error={calcQuery.error} onRetry={() => void calcQuery.refetch()} title="Не удалось рассчитать" />
+            ) : result ? (
+              <div className="grid gap-3">
+                {calcQuery.isFetching && (
+                  <Typography variant="bodyXs" tone="muted">
+                    Обновляем…
+                  </Typography>
+                )}
+                <ResultView result={result} fabricById={fabricById} />
+              </div>
+            ) : (
+              <div className="grid gap-3 p-6">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-32 w-full" />
+              </div>
             )}
           </CardContent>
         </Card>
