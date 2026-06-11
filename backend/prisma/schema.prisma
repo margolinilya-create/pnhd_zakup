@@ -165,6 +165,7 @@ model PassportComponent {
   id             String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
   passportId     String        @db.Uuid @map("passport_id")
   role           ComponentRole @default(MAIN)
+  name           String?
   normBase       Float         @map("norm_base")
   normBaseMeters Float?        @map("norm_base_meters")
   lossCut        Float         @default(0.05) @map("loss_cut")
@@ -200,6 +201,7 @@ model Order {
   componentFabricMap Json          @map("component_fabric_map")
   fxRate             Float         @map("fx_rate")
   reservePct         Float         @map("reserve_pct")
+  defectPct          Float         @default(0) @map("defect_pct")
   priceCurrency      PriceCurrency @default(RUB) @map("price_currency")
   inputSnapshot      Json          @map("input_snapshot")
   result             Json

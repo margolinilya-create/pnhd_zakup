@@ -109,6 +109,7 @@ export class ProcurementService {
         components: passportRow.components.map((c) => ({
           componentId: c.id,
           role: c.role,
+          name: c.name,
           normBase: c.normBase,
           lossCut: c.lossCut,
           lossSew: c.lossSew,
@@ -160,6 +161,7 @@ export class ProcurementService {
         componentFabricMap: asJson(componentFabricMap),
         fxRate: input.fxRate,
         reservePct: input.reservePct,
+        defectPct: input.defectPct ?? 0,
         priceCurrency: input.currency,
         inputSnapshot: asJson(snapshot),
         result: asJson(result),
@@ -361,7 +363,7 @@ export class ProcurementService {
       for (const c of data.components) {
         const component = await tx.passportComponent.create({
           data: {
-            passportId: passport.id, role: c.role, normBase: c.normBase,
+            passportId: passport.id, role: c.role, name: c.name ?? null, normBase: c.normBase,
             normBaseMeters: c.normBaseMeters ?? null, lossCut: c.lossCut, lossSew: c.lossSew,
           },
         })
@@ -428,7 +430,7 @@ function toSupplierFabricDto(sf: {
 function toPassportDto(p: {
   id: string; skuId: string; baseSize: string; sizeCoefficients: unknown; version: number
   components: Array<{
-    id: string; role: 'MAIN' | 'RIB' | 'TRIM' | 'OTHER'; normBase: number; normBaseMeters: number | null
+    id: string; role: 'MAIN' | 'RIB' | 'TRIM' | 'OTHER'; name: string | null; normBase: number; normBaseMeters: number | null
     lossCut: number; lossSew: number; allowedFabrics: Array<{ fabricId: string }>
   }>
 }): PassportDto {
@@ -436,7 +438,7 @@ function toPassportDto(p: {
     id: p.id, skuId: p.skuId, baseSize: p.baseSize,
     sizeCoefficients: p.sizeCoefficients as Record<string, number>, version: p.version,
     components: p.components.map((c) => ({
-      id: c.id, role: c.role, normBase: c.normBase, normBaseMeters: c.normBaseMeters,
+      id: c.id, role: c.role, name: c.name, normBase: c.normBase, normBaseMeters: c.normBaseMeters,
       lossCut: c.lossCut, lossSew: c.lossSew, allowedFabricIds: c.allowedFabrics.map((a) => a.fabricId),
     })),
   }
@@ -453,7 +455,7 @@ function toSkuDto(s: {
 }
 
 function toOrderDto(order: {
-  id: string; mode: 'TEST' | 'ORDER'; skuId: string; sizeBreakdown: unknown; reservePct: number
+  id: string; mode: 'TEST' | 'ORDER'; skuId: string; sizeBreakdown: unknown; reservePct: number; defectPct: number
   priceCurrency: 'RUB' | 'USD'; fxRate: number; result: unknown; createdAt: Date
   facts: Array<{
     id: string; fabricId: string; actualConsumed: number; wasteFabric: number; wasteSewing: number
@@ -478,6 +480,7 @@ function toOrderDto(order: {
   return {
     id: order.id, mode: order.mode, skuId: order.skuId,
     sizeBreakdown: order.sizeBreakdown as Record<string, number>, reservePct: order.reservePct,
+    defectPct: order.defectPct,
     currency: order.priceCurrency, fxRate: order.fxRate, result, createdAt: order.createdAt.toISOString(), facts,
   }
 }

@@ -89,6 +89,7 @@ export function computeProcurement(input: CalcInput, refs: CalcRefs): CalcResult
     const factor: ComponentFactor = {
       componentId: component.componentId,
       role: component.role,
+      componentName: component.name ?? null,
       fabricId: fabric.id,
       sizeWeightedQty,
       rawQty,
@@ -120,13 +121,18 @@ export function computeProcurement(input: CalcInput, refs: CalcRefs): CalcResult
     const canon = fabric.canonicalUnit
     const kgPerM = kgPerMeter(fabric)
 
+    const defectPct = input.defectPct ?? 0
     const needKg = convert(netCanonical, canon, 'kg', kgPerM)
     const needM = convert(netCanonical, canon, 'm', kgPerM)
     const reserveCanonical = netCanonical * input.reservePct
     const reserveKg = convert(reserveCanonical, canon, 'kg', kgPerM)
     const reserveM = convert(reserveCanonical, canon, 'm', kgPerM)
+    const defectCanonical = netCanonical * defectPct
+    const defectKg = convert(defectCanonical, canon, 'kg', kgPerM)
+    const defectM = convert(defectCanonical, canon, 'm', kgPerM)
 
-    const toBuyCanonical = netCanonical * (1 + input.reservePct) // step 4 (no stock) + step 5
+    // step 4 (no stock) + step 5: net + reserve buffer + defect buffer (both additive on net)
+    const toBuyCanonical = netCanonical * (1 + input.reservePct + defectPct)
     const rollUnit = fabric.rollUnit
     const rollSize = supplierFabric.rollSize ?? fabric.rollSize
     const toBuyRoll = convert(toBuyCanonical, canon, rollUnit, kgPerM)
@@ -156,6 +162,8 @@ export function computeProcurement(input: CalcInput, refs: CalcRefs): CalcResult
       needM,
       reserveKg,
       reserveM,
+      defectKg,
+      defectM,
       rollUnit,
       rollSize,
       rollsCount,
@@ -176,6 +184,7 @@ export function computeProcurement(input: CalcInput, refs: CalcRefs): CalcResult
     sizeWeightedQty,
     perekos,
     reservePct: input.reservePct,
+    defectPct: input.defectPct ?? 0,
     currency: input.currency,
     fxRate: input.fxRate,
     fabrics: fabricResults,

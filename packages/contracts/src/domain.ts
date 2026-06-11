@@ -37,6 +37,7 @@ export const supplierFabricSchema = z.object({
 export const passportComponentSchema = z.object({
   componentId: z.string(),
   role: componentRoleSchema,
+  name: z.string().nullish(), // human label, e.g. "Подкладка", "Карман" (role stays the coarse category)
   normBase: z.number().nonnegative(), // per base-size garment, in the fabric canonical unit
   lossCut: z.number().min(0),
   lossSew: z.number().min(0),
@@ -63,7 +64,8 @@ export const calcInputSchema = z.object({
   skuId: z.string(),
   sizeBreakdown: z.record(z.string(), z.number().int().nonnegative()),
   componentSelections: z.array(componentSelectionSchema).min(1).max(100),
-  reservePct: z.number().min(0),
+  reservePct: z.number().min(0), // safety stock buffer
+  defectPct: z.number().min(0).optional(), // planned defect/scrap buffer (separate from reserve); engine treats missing as 0
   currency: priceCurrencySchema,
   fxRate: z.number().positive(), // USD->RUB; use 1 for RUB
 })
@@ -79,6 +81,7 @@ export const calcRefsSchema = z.object({
 export const componentFactorSchema = z.object({
   componentId: z.string(),
   role: componentRoleSchema,
+  componentName: z.string().nullish(),
   fabricId: z.string(),
   sizeWeightedQty: z.number(),
   rawQty: z.number(), // canonical unit
@@ -98,6 +101,8 @@ export const fabricResultSchema = z.object({
   needM: z.number(),
   reserveKg: z.number(),
   reserveM: z.number(),
+  defectKg: z.number().default(0),
+  defectM: z.number().default(0),
   rollUnit: canonicalUnitSchema,
   rollSize: z.number(),
   rollsCount: z.number().int(),
@@ -117,6 +122,7 @@ export const calcResultSchema = z.object({
   sizeWeightedQty: z.number(),
   perekos: z.number(),
   reservePct: z.number(),
+  defectPct: z.number().default(0),
   currency: priceCurrencySchema,
   fxRate: z.number(),
   fabrics: z.array(fabricResultSchema),

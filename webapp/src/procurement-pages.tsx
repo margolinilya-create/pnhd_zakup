@@ -24,6 +24,7 @@ import { useAuth } from '@/lib/use-auth'
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const RESERVE_OPTIONS = [0, 0.03, 0.05, 0.07, 0.1]
+const DEFECT_OPTIONS = [0, 0.01, 0.02, 0.03, 0.05]
 
 function fmt(value: number, digits = 2): string {
   return value.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
@@ -91,6 +92,7 @@ function CalculatorInner() {
   const [selections, setSelections] = useState<Record<string, Selection>>({})
   const [sizeQ, setSizeQ] = useState<Record<string, number>>({})
   const [reservePct, setReservePct] = useState(0.05)
+  const [defectPct, setDefectPct] = useState(0.05)
   const [currency, setCurrency] = useState<'RUB' | 'USD'>('RUB')
   const [fxRate, setFxRate] = useState(95)
 
@@ -147,6 +149,7 @@ function CalculatorInner() {
       supplierId: selections[c.id]?.supplierId ?? '',
     })),
     reservePct,
+    defectPct,
     currency,
     fxRate,
   })
@@ -238,9 +241,16 @@ function CalculatorInner() {
               const densities = groups.find((g) => g.key === currentKey)?.fabrics ?? []
               return (
                 <div key={c.id} className="grid gap-3 rounded-xl border bg-muted/30 p-4">
-                  <Badge variant="secondary" className="w-fit">
-                    {ROLE_LABELS[c.role] ?? c.role}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="w-fit">
+                      {c.name?.trim() || ROLE_LABELS[c.role] || c.role}
+                    </Badge>
+                    {c.name?.trim() && (
+                      <Typography variant="bodyXs" as="span" tone="muted">
+                        {ROLE_LABELS[c.role] ?? c.role}
+                      </Typography>
+                    )}
+                  </div>
                   <Field>
                     <FieldLabel>Ткань</FieldLabel>
                     <NativeSelect
@@ -315,9 +325,19 @@ function CalculatorInner() {
 
             <div className="grid grid-cols-2 gap-3">
               <Field>
-                <FieldLabel>Резерв</FieldLabel>
+                <FieldLabel>Резерв на заказ</FieldLabel>
                 <NativeSelect value={String(reservePct)} onChange={(e) => setReservePct(Number(e.target.value))}>
                   {RESERVE_OPTIONS.map((r) => (
+                    <NativeSelectOption key={r} value={String(r)}>
+                      {Math.round(r * 100)}%
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field>
+                <FieldLabel>На брак</FieldLabel>
+                <NativeSelect value={String(defectPct)} onChange={(e) => setDefectPct(Number(e.target.value))}>
+                  {DEFECT_OPTIONS.map((r) => (
                     <NativeSelectOption key={r} value={String(r)}>
                       {Math.round(r * 100)}%
                     </NativeSelectOption>
@@ -409,6 +429,7 @@ function ResultView({ result, fabricById }: { result: CalcResult; fabricById: Ma
         <div className="mt-3 flex flex-wrap gap-2">
           <Badge variant="secondary">{result.totalGarments} изд.</Badge>
           <Badge variant="secondary">резерв {Math.round(result.reservePct * 100)}%</Badge>
+          {result.defectPct > 0 && <Badge variant="secondary">брак {Math.round(result.defectPct * 100)}%</Badge>}
           <Badge variant="outline">перекос ×{fmt(result.perekos, 3)}</Badge>
         </div>
       </div>
@@ -490,7 +511,7 @@ function CoefficientBreakdown({
               return (
                 <div key={c.componentId} className="grid gap-1 rounded-lg bg-background/60 p-3">
                   <Typography variant="bodyXs" tone="muted">
-                    {ROLE_LABELS[c.role] ?? c.role}
+                    {c.componentName?.trim() || ROLE_LABELS[c.role] || c.role}
                   </Typography>
                   <BreakdownStep label="Базовый расход (норма × взвеш. кол-во)" value={`${fmt(c.rawQty)} ${unit}`} />
                   <BreakdownStep
@@ -505,11 +526,25 @@ function CoefficientBreakdown({
                 </div>
               )
             })}
+            <div className="grid gap-1 px-1">
+              <BreakdownStep
+                label={`+ Резерв на заказ (${Math.round(result.reservePct * 100)}%)`}
+                value={`+${fmt(f.canonicalUnit === 'm' ? f.reserveM : f.reserveKg)} ${f.canonicalUnit}`}
+              />
+              {result.defectPct > 0 && (
+                <BreakdownStep
+                  label={`+ На брак (${Math.round(result.defectPct * 100)}%)`}
+                  value={`+${fmt(f.canonicalUnit === 'm' ? f.defectM : f.defectKg)} ${f.canonicalUnit}`}
+                />
+              )}
+              <BreakdownStep
+                label="= К закупке (округление до рулона)"
+                value={`${fmt(f.orderQty, 0)} ${f.rollUnit} · ${f.rollsCount} рул.`}
+                strong
+              />
+            </div>
           </div>
         ))}
-        <Typography variant="bodyXs" tone="muted">
-          К закупке добавляется резерв и округление до целого рулона.
-        </Typography>
       </div>
     </details>
   )

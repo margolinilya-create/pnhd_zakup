@@ -216,6 +216,48 @@ describe('procurement engine — perekos when one size dominates (>50%)', () => 
   })
 })
 
+describe('procurement engine — reserve and defect are separate additive buffers', () => {
+  const refs: CalcRefs = {
+    passport: {
+      skuId: 'sku_d',
+      baseSize: 'M',
+      version: 1,
+      sizeCoefficients: { M: 1, L: 1 },
+      components: [{ componentId: 'c', role: 'MAIN', normBase: 1.0, lossCut: 0, lossSew: 0, allowedFabricIds: ['fd'] }],
+    },
+    fabrics: [{ id: 'fd', name: 'D', category: 'D', canonicalUnit: 'kg', densityGsm: 200, widthCm: 180, preShrink: 0, rollSize: 1, rollUnit: 'kg' }],
+    supplierFabrics: [{ supplierId: 's1', fabricId: 'fd', priceRub: 1, priceUnit: 'kg' }],
+  }
+  // 50/50 split → perekos 1, width 180 → no width effect, no losses/shrink → net = 100 kg exactly.
+  const base = {
+    skuId: 'sku_d',
+    sizeBreakdown: { M: 50, L: 50 },
+    componentSelections: [{ componentId: 'c', fabricId: 'fd', supplierId: 's1' }],
+    currency: 'RUB' as const,
+    fxRate: 1,
+  }
+
+  test('reserve 5% + defect 5% → net × 1.10, each buffer reported separately', () => {
+    const result = computeProcurement({ ...base, reservePct: 0.05, defectPct: 0.05 }, refs)
+    const fd = result.fabrics[0]
+    expect(fd.needKg).toBeCloseTo(100, 9)
+    expect(fd.reserveKg).toBeCloseTo(5, 9)
+    expect(fd.defectKg).toBeCloseTo(5, 9)
+    expect(fd.orderQty).toBe(110) // ceil(100 × 1.10 / 1) × 1
+    expect(result.reservePct).toBe(0.05)
+    expect(result.defectPct).toBe(0.05)
+  })
+
+  test('missing defectPct behaves as 0 (back-compat)', () => {
+    const result = computeProcurement({ ...base, reservePct: 0.05 }, refs)
+    const fd = result.fabrics[0]
+    expect(fd.defectKg).toBe(0)
+    expect(fd.defectM).toBe(0)
+    expect(result.defectPct).toBe(0)
+    expect(fd.orderQty).toBe(105) // reserve only
+  })
+})
+
 describe('procurement engine — determinism and validation', () => {
   test('two calls with the same input produce byte-identical results', () => {
     const a = computeProcurement(goldenInput, goldenRefs)

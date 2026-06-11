@@ -56,6 +56,7 @@ export const supplierFabricDtoSchema = z.object({
 export const passportComponentDtoSchema = z.object({
   id: z.string(),
   role: componentRoleSchema,
+  name: z.string().nullable(),
   normBase: z.number(),
   normBaseMeters: z.number().nullable(),
   lossCut: z.number(),
@@ -150,6 +151,7 @@ export const orderDtoSchema = z.object({
   skuId: z.string(),
   sizeBreakdown: z.record(z.string(), z.number()),
   reservePct: z.number(),
+  defectPct: z.number().default(0),
   currency: priceCurrencySchema,
   fxRate: z.number(),
   result: calcResultSchema,
@@ -211,6 +213,7 @@ export const skuUpdateSchema = skuInputSchema.partial()
 
 export const passportComponentInputSchema = z.object({
   role: componentRoleSchema,
+  name: z.string().trim().max(60).nullish(),
   normBase: z.number().nonnegative(),
   normBaseMeters: z.number().nonnegative().nullish(),
   lossCut: z.number().min(0).max(1),

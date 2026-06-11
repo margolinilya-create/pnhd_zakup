@@ -38,6 +38,12 @@ import { cn } from '@/lib/utils'
 
 const SIZE_LADDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const ROLE_OPTIONS = ['MAIN', 'RIB', 'TRIM', 'OTHER'] as const
+const ROLE_LABELS: Record<string, string> = {
+  MAIN: 'Основная',
+  RIB: 'Рибана',
+  TRIM: 'Отделка',
+  OTHER: 'Прочее',
+}
 
 // The inline edit/passport panel renders below a long table; on the long lists
 // (24 fabrics, 41 SKUs) it lands off-screen, so opening it looks like a no-op.
@@ -794,6 +800,7 @@ function formToSkuInput(form: SkuForm) {
 
 type ComponentForm = {
   role: (typeof ROLE_OPTIONS)[number]
+  name: string
   normBase: string
   lossCutPct: string
   lossSewPct: string
@@ -801,7 +808,7 @@ type ComponentForm = {
 }
 
 function emptyComponent(): ComponentForm {
-  return { role: 'MAIN', normBase: '', lossCutPct: '', lossSewPct: '', allowedFabricIds: [] }
+  return { role: 'MAIN', name: '', normBase: '', lossCutPct: '', lossSewPct: '', allowedFabricIds: [] }
 }
 
 type SizeCoef = { size: string; coef: string }
@@ -857,6 +864,7 @@ export function SkusAdminPage() {
         sizeCoefficients,
         components: components.map((c) => ({
           role: c.role,
+          name: c.name.trim() ? c.name.trim() : null,
           normBase: Number(c.normBase),
           lossCut: Number(c.lossCutPct) / 100,
           lossSew: Number(c.lossSewPct) / 100,
@@ -883,6 +891,7 @@ export function SkusAdminPage() {
       setComponents(
         p.components.map((c) => ({
           role: c.role,
+          name: c.name ?? '',
           normBase: String(c.normBase),
           lossCutPct: String(Math.round(c.lossCut * 1000) / 10),
           lossSewPct: String(Math.round(c.lossSew * 1000) / 10),
@@ -1070,13 +1079,21 @@ export function SkusAdminPage() {
               </Typography>
               {components.map((c, idx) => (
                 <div key={idx} className="grid gap-4 rounded-xl border bg-muted/20 p-4">
+                  <Field>
+                    <FieldLabel>Назначение ткани</FieldLabel>
+                    <Input
+                      placeholder="Напр.: Основная, Подкладка, Рибана, Карман…"
+                      value={c.name}
+                      onChange={(e) => updateComponent(idx, { name: e.target.value })}
+                    />
+                  </Field>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <Field>
                       <FieldLabel>Роль</FieldLabel>
                       <NativeSelect value={c.role} onChange={(e) => updateComponent(idx, { role: e.target.value as ComponentForm['role'] })}>
                         {ROLE_OPTIONS.map((r) => (
                           <NativeSelectOption key={r} value={r}>
-                            {r}
+                            {ROLE_LABELS[r] ?? r}
                           </NativeSelectOption>
                         ))}
                       </NativeSelect>

@@ -37,7 +37,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     const body = await readBody(req)
-    const request = new Request(url, { method, headers, body })
+    // body is a Node Buffer (a Uint8Array at runtime, a valid BodyInit for undici's
+    // Request); cast for the DOM-typed Request without changing the buffering behaviour.
+    const request = new Request(url, { method, headers, body: body as BodyInit | undefined })
     const response = await app.fetch(request)
 
     res.statusCode = response.status

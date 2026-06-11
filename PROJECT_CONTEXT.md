@@ -17,7 +17,10 @@
 - Web: **React + Vite + TanStack** (Query/Form/Router).
 - Контракты: **packages/contracts** — общие Zod-схемы + чистый движок расчёта.
 - **База данных: Supabase** (managed PostgreSQL 17, проект `pnhd-zakup`, регион eu-central-1 / Франкфурт). Подключение приложения и с локальной машины — только через **Session Pooler** (IPv4; прямой хост `db.*.supabase.co` — IPv6-only и недоступен). Локального Docker-Postgres больше нет. Тесты идут в отдельной схеме **`app_test`** той же базы. Секреты/строки подключения — в `backend/.env` (в `.gitignore`). Детали — `docs/LOCAL_DATABASE.md`.
-- **Деплой:** фронтенд (`webapp`) уже на **Vercel** → https://pnhd-zakup-webapp.vercel.app (автодеплой с ветки `master`). Backend (Hono) пока **не захостен** — `VITE_API_URL` указывает на `localhost:3000`, хостинг backend — следующий шаг (TBD). Детали — `docs/DEPLOYMENT.md`.
+- **Деплой:** фронтенд (`webapp`) **и** backend (Hono) — оба на **Vercel**, автодеплой с ветки `master`:
+  - webapp → https://pnhd-zakup-webapp.vercel.app (проект `pnhd-zakup-webapp`, root `webapp`); сборочный `VITE_API_URL=https://pnhd-zakup-api.vercel.app`.
+  - API → https://pnhd-zakup-api.vercel.app (проект `pnhd-zakup-api`, root `backend`); хэндлер — самописный буферизующий мост `req→Hono` в `src/server-entry.ts` (стандартный node-server streaming-адаптер виснет на non-GET в раннере Vercel). Env: `DATABASE_URL` (session pooler), `JWT_SECRET`, `CORS_ORIGINS`=origin webapp, `COOKIE_SECURE=true`.
+  - Миграции БД накатываются вручную: `bun run --cwd backend prisma:deploy` (читает `DATABASE_URL` прод-схемы `public` из `backend/.env`). Vercel-сборка миграции не запускает. Детали — `docs/DEPLOYMENT.md`.
 - **Роль Supabase = только managed Postgres.** Подключаемся ролью `postgres` через Prisma; **RLS выключен**; Supabase Auth/Storage не используем. Аутентификация — JWT шаблона, авторизация по ролям — на backend (RBAC в v2). Рекомендация ТЗ §11 (Supabase Auth + RLS, без отдельного бэкенда) **сознательно не взята** в пользу пути шаблона vibe.
 - Активные поверхности: **web + backend/API**. mobile и landing — отложены (deferred-заметки в их README).
 - Workflow разработки: **bulletproof** (фазы → TDD → гейты → коммит → свежий контекст). Гейты: `bun run typecheck` · `bun run test` · `bun run e2e:web`.
