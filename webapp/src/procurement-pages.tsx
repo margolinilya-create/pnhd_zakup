@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 
 import { DataError } from '@/components/data-error'
 import { PageHeader } from '@/components/page-header'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -274,6 +275,13 @@ function CalculatorInner() {
     Boolean(skuId) &&
     totalGarments > 0 &&
     components.every((c) => selections[c.id]?.fabricId && selections[c.id]?.supplierId)
+
+  // Soft validation: non-blocking hints about inputs that look wrong.
+  const warnings: string[] = []
+  if (currency === 'USD' && !(fxRate > 0)) warnings.push('Валюта $, но курс не задан — стоимость посчитается неверно.')
+  if (currency === 'USD' && fxRate > 0 && (fxRate < 30 || fxRate > 300))
+    warnings.push(`Курс $ = ${fxRate} ₽ выглядит необычно — проверьте.`)
+  if (totalGarments > 100000) warnings.push(`Очень большая партия (${totalGarments} шт) — проверьте количество.`)
 
   // Live calculation: debounce the input, then auto-run /api/calc (no "Рассчитать" button).
   const inputKey = JSON.stringify(buildInput())
@@ -563,6 +571,22 @@ function CalculatorInner() {
               )}
             </div>
 
+            {warnings.length > 0 && (
+              <Alert>
+                <AlertTitle>Проверьте ввод</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-4">
+                    {warnings.map((w) => (
+                      <li key={w}>
+                        <Typography variant="bodySm" as="span">
+                          {w}
+                        </Typography>
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="-mx-6 -mb-6 mt-1 flex flex-wrap gap-2 border-t bg-muted/20 px-6 py-4">
               <Button
                 type="button"
