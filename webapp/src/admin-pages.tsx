@@ -258,6 +258,18 @@ function FabricFormFields({ form, setForm }: { form: FabricForm; setForm: (f: Fa
   )
 }
 
+function fabricMatches(f: FabricDto, q: string): boolean {
+  const s = q.trim().toLowerCase()
+  if (!s) return true
+  return [f.code, f.name, f.category, f.composition ?? ''].some((v) => v.toLowerCase().includes(s))
+}
+
+function skuMatches(sku: SkuDto, q: string): boolean {
+  const s = q.trim().toLowerCase()
+  if (!s) return true
+  return [sku.code, sku.name, sku.category, sku.fit ?? ''].some((v) => v.toLowerCase().includes(s))
+}
+
 export function FabricsAdminPage() {
   const { api } = useAuth()
   const queryClient = useQueryClient()
@@ -268,6 +280,9 @@ export function FabricsAdminPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<FabricForm>(emptyFabricForm)
   useScrollOnOpen('fabric-edit', editId !== null)
+
+  const [query, setQuery] = useState('')
+  const filtered = fabrics.filter((f) => fabricMatches(f, query))
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['fabrics'] })
 
@@ -307,15 +322,25 @@ export function FabricsAdminPage() {
       <Card>
         <CardHeader>
           <CardTitle>Список тканей</CardTitle>
-          <CardDescription>{fabrics.length} шт.</CardDescription>
+          <CardDescription>{query ? `${filtered.length} из ${fabrics.length}` : `${fabrics.length} шт.`}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="grid gap-4">
+          {!fabricsQuery.isLoading && !fabricsQuery.isError && fabrics.length > 0 && (
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск: код, название, категория, состав…"
+              className="max-w-sm"
+            />
+          )}
           {fabricsQuery.isError ? (
             <DataError error={fabricsQuery.error} onRetry={() => void fabricsQuery.refetch()} title="Не удалось загрузить ткани" />
           ) : fabricsQuery.isLoading ? (
             <TableSkeleton />
           ) : fabrics.length === 0 ? (
             <ListEmpty icon={RulerIcon} title="Тканей пока нет" description="Добавьте первую ткань в форме ниже." />
+          ) : filtered.length === 0 ? (
+            <ListEmpty icon={RulerIcon} title="Ничего не найдено" description="Измените запрос или очистите поиск." />
           ) : (
             <Table>
               <TableHeader>
@@ -333,7 +358,7 @@ export function FabricsAdminPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {fabrics.map((f) => (
+                {filtered.map((f) => (
                   <TableRow key={f.id}>
                     <TableCell>{f.code}</TableCell>
                     <TableCell>{f.name}</TableCell>
@@ -830,6 +855,9 @@ export function SkusAdminPage() {
   const [components, setComponents] = useState<ComponentForm[]>([])
   useScrollOnOpen('sku-passport', selectedId !== null)
 
+  const [query, setQuery] = useState('')
+  const filtered = skus.filter((s) => skuMatches(s, query))
+
   const invalidateSkus = () => queryClient.invalidateQueries({ queryKey: ['skus'] })
 
   const createMutation = useMutation({
@@ -926,15 +954,25 @@ export function SkusAdminPage() {
       <Card>
         <CardHeader>
           <CardTitle>Список SKU</CardTitle>
-          <CardDescription>{skus.length} шт.</CardDescription>
+          <CardDescription>{query ? `${filtered.length} из ${skus.length}` : `${skus.length} шт.`}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="grid gap-4">
+          {!skusQuery.isLoading && !skusQuery.isError && skus.length > 0 && (
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск: код, название, категория, крой…"
+              className="max-w-sm"
+            />
+          )}
           {skusQuery.isError ? (
             <DataError error={skusQuery.error} onRetry={() => void skusQuery.refetch()} title="Не удалось загрузить SKU" />
           ) : skusQuery.isLoading ? (
             <TableSkeleton />
           ) : skus.length === 0 ? (
             <ListEmpty icon={PackageIcon} title="Моделей пока нет" description="Добавьте первую модель (SKU) в форме ниже." />
+          ) : filtered.length === 0 ? (
+            <ListEmpty icon={PackageIcon} title="Ничего не найдено" description="Измените запрос или очистите поиск." />
           ) : (
             <Table>
               <TableHeader>
@@ -948,7 +986,7 @@ export function SkusAdminPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {skus.map((s) => (
+                {filtered.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell>{s.code}</TableCell>
                     <TableCell>{s.name}</TableCell>
