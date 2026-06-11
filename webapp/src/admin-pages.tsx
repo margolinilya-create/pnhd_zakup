@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmDeleteButton } from '@/components/confirm-delete-button'
+import { DataError } from '@/components/data-error'
 import { PageHeader } from '@/components/page-header'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +36,7 @@ import { formatFabricLabel } from '@/lib/fabric'
 import { useAuth } from '@/lib/use-auth'
 import { cn } from '@/lib/utils'
 
-const SIZE_LADDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+const SIZE_LADDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const ROLE_OPTIONS = ['MAIN', 'RIB', 'TRIM', 'OTHER'] as const
 
 // The inline edit/passport panel renders below a long table; on the long lists
@@ -303,7 +304,9 @@ export function FabricsAdminPage() {
           <CardDescription>{fabrics.length} шт.</CardDescription>
         </CardHeader>
         <CardContent>
-          {fabricsQuery.isLoading ? (
+          {fabricsQuery.isError ? (
+            <DataError error={fabricsQuery.error} onRetry={() => void fabricsQuery.refetch()} title="Не удалось загрузить ткани" />
+          ) : fabricsQuery.isLoading ? (
             <TableSkeleton />
           ) : fabrics.length === 0 ? (
             <ListEmpty icon={RulerIcon} title="Тканей пока нет" description="Добавьте первую ткань в форме ниже." />
@@ -574,7 +577,17 @@ export function SuppliersAdminPage() {
           <CardDescription>{suppliers.length} шт.</CardDescription>
         </CardHeader>
         <CardContent>
-          {suppliersQuery.isLoading ? (
+          {suppliersQuery.isError || sfQuery.isError ? (
+            <DataError
+              error={suppliersQuery.error ?? sfQuery.error}
+              onRetry={() => {
+                void suppliersQuery.refetch()
+                void sfQuery.refetch()
+                void fabricsQuery.refetch()
+              }}
+              title="Не удалось загрузить поставщиков"
+            />
+          ) : suppliersQuery.isLoading ? (
             <TableSkeleton />
           ) : suppliers.length === 0 ? (
             <ListEmpty icon={Coins01Icon} title="Поставщиков пока нет" description="Добавьте первого поставщика в форме ниже." />
@@ -834,7 +847,10 @@ export function SkusAdminPage() {
       const sizeCoefficients: Record<string, number> = {}
       for (const row of sizeCoefs) {
         const size = row.size.trim()
-        if (size) sizeCoefficients[size] = Number(row.coef)
+        const coef = Number(row.coef)
+        // Skip blank/invalid rows: the contract requires positive coefficients, and
+        // the size ladder offers more sizes (up to 6XL) than any one model uses.
+        if (size && Number.isFinite(coef) && coef > 0) sizeCoefficients[size] = coef
       }
       const input: PassportInput = {
         baseSize: baseSize.trim() || 'M',
@@ -904,7 +920,9 @@ export function SkusAdminPage() {
           <CardDescription>{skus.length} шт.</CardDescription>
         </CardHeader>
         <CardContent>
-          {skusQuery.isLoading ? (
+          {skusQuery.isError ? (
+            <DataError error={skusQuery.error} onRetry={() => void skusQuery.refetch()} title="Не удалось загрузить SKU" />
+          ) : skusQuery.isLoading ? (
             <TableSkeleton />
           ) : skus.length === 0 ? (
             <ListEmpty icon={PackageIcon} title="Моделей пока нет" description="Добавьте первую модель (SKU) в форме ниже." />

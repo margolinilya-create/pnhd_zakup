@@ -1,4 +1,4 @@
-import { ArrowLeft01Icon, Calculator01Icon, Invoice01Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, ArrowLeft01Icon, Calculator01Icon, Invoice01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
@@ -6,6 +6,7 @@ import type { CalcResult, FabricDto, SupplierFabricDto } from '@web-app-demo/con
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { DataError } from '@/components/data-error'
 import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,7 @@ import { ApiRequestError } from '@/lib/api'
 import { fabricDensityLabel, fabricTypeKey, formatFabricLabel, groupFabricsByType } from '@/lib/fabric'
 import { useAuth } from '@/lib/use-auth'
 
-const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const RESERVE_OPTIONS = [0, 0.03, 0.05, 0.07, 0.1]
 
 function fmt(value: number, digits = 2): string {
@@ -170,6 +171,29 @@ function CalculatorInner() {
     components.every((c) => selections[c.id]?.fabricId && selections[c.id]?.supplierId)
 
   const result = calcMutation.data
+
+  const refQueries = [skusQuery, fabricsQuery, sfQuery, suppliersQuery]
+  const failedQuery = refQueries.find((q) => q.isError)
+  if (failedQuery) {
+    return (
+      <section className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-10">
+        <PageHeader
+          eyebrow="Калькулятор закупки"
+          title="Расчёт потребности в ткани"
+          description="Выберите модель, ткани и поставщиков, задайте размерный ряд и резерв — получите объём закупки и стоимость."
+        />
+        <Card>
+          <CardContent className="pt-6">
+            <DataError
+              error={failedQuery.error}
+              onRetry={() => refQueries.forEach((q) => void q.refetch())}
+              title="Не удалось загрузить справочники"
+            />
+          </CardContent>
+        </Card>
+      </section>
+    )
+  }
 
   if (skusQuery.isLoading) {
     return <PageSkeleton />
@@ -424,8 +448,81 @@ function ResultView({ result, fabricById }: { result: CalcResult; fabricById: Ma
         </TableBody>
       </Table>
 
+      <CoefficientBreakdown result={result} fabricById={fabricById} />
+
       <Typography variant="bodyXs" tone="muted">
         Взвешенное количество: {fmt(result.sizeWeightedQty, 2)}
+      </Typography>
+    </div>
+  )
+}
+
+// Surfaces the per-component coefficient chain the engine already computes, so the
+// "коэффициент усложнения" is no longer a black box: base norm → layout → losses →
+// pre-shrink → net (specs/tz-calculator.md §8 "расшифровка коэффициентов").
+function CoefficientBreakdown({
+  result,
+  fabricById,
+}: {
+  result: CalcResult
+  fabricById: Map<string, FabricDto>
+}) {
+  return (
+    <details className="group rounded-xl border bg-muted/20 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
+        <Typography variant="control" as="span">
+          Как считается расход (коэффициенты)
+        </Typography>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          strokeWidth={2}
+          className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+        />
+      </summary>
+      <div className="grid gap-4 border-t px-4 py-4">
+        {result.fabrics.map((f) => (
+          <div key={f.fabricId} className="grid gap-2">
+            <Typography variant="bodySm" tone="primary">
+              {formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId}
+            </Typography>
+            {f.components.map((c) => {
+              const unit = f.canonicalUnit
+              return (
+                <div key={c.componentId} className="grid gap-1 rounded-lg bg-background/60 p-3">
+                  <Typography variant="bodyXs" tone="muted">
+                    {ROLE_LABELS[c.role] ?? c.role}
+                  </Typography>
+                  <BreakdownStep label="Базовый расход (норма × взвеш. кол-во)" value={`${fmt(c.rawQty)} ${unit}`} />
+                  <BreakdownStep
+                    label={`× Раскладка (перекос ×${fmt(c.perekos, 3)}, ширина ×${fmt(c.widthEffect, 3)})`}
+                    value={`×${fmt(c.layoutCoef, 3)}`}
+                  />
+                  <BreakdownStep label="× Потери (раскрой + пошив)" value={`×${fmt(c.lossFactor, 3)}`} />
+                  <BreakdownStep label="× Усадка ткани" value={`×${fmt(c.preShrinkFactor, 3)}`} />
+                  <div className="mt-1 border-t pt-1">
+                    <BreakdownStep label="= Нетто на партию" value={`${fmt(c.netQty)} ${unit}`} strong />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+        <Typography variant="bodyXs" tone="muted">
+          К закупке добавляется резерв и округление до целого рулона.
+        </Typography>
+      </div>
+    </details>
+  )
+}
+
+function BreakdownStep({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <Typography variant="bodySm" as="span" tone={strong ? 'primary' : 'muted'}>
+        {label}
+      </Typography>
+      <Typography variant="bodySm" as="span" tone={strong ? 'primary' : 'default'} className="tnum whitespace-nowrap">
+        {value}
       </Typography>
     </div>
   )
@@ -460,7 +557,17 @@ function OrdersInner() {
           </Button>
         }
       />
-      {ordersQuery.isLoading ? (
+      {ordersQuery.isError ? (
+        <Card>
+          <CardContent className="pt-6">
+            <DataError
+              error={ordersQuery.error}
+              onRetry={() => void ordersQuery.refetch()}
+              title="Не удалось загрузить заказы"
+            />
+          </CardContent>
+        </Card>
+      ) : ordersQuery.isLoading ? (
         <Card>
           <CardContent className="grid gap-3 pt-6">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -574,6 +681,17 @@ function OrderDetailInner() {
 
   if (orderQuery.isLoading) {
     return <PageSkeleton />
+  }
+  if (orderQuery.isError) {
+    return (
+      <section className="mx-auto grid w-full max-w-6xl gap-4 px-5 py-16">
+        <DataError
+          error={orderQuery.error}
+          onRetry={() => void orderQuery.refetch()}
+          title="Не удалось загрузить заказ"
+        />
+      </section>
+    )
   }
   if (!order) {
     return (

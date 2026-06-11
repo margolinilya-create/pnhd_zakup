@@ -166,7 +166,9 @@ const SKUS: Array<{ code: string; name: string; normMeters: number; fabric: stri
   { code: 'SKU046', name: 'Шорты man', normMeters: 1.0, fabric: 'FAB014' },
 ]
 
-const SIZE_COEFFICIENTS = { XS: 0.85, S: 0.92, M: 1.0, L: 1.09, XL: 1.18, XXL: 1.28 }
+// Ladder extends to 6XL (XXL = 2XL). Defaults continue the ~+0.10 step; real
+// values need per-model measurement (specs/tz-calculator.md §10) and are tuned in the editor.
+const SIZE_COEFFICIENTS = { XS: 0.85, S: 0.92, M: 1.0, L: 1.09, XL: 1.18, XXL: 1.28, '3XL': 1.38, '4XL': 1.48, '5XL': 1.58, '6XL': 1.68 }
 const LOSS_CUT = 0.05
 const LOSS_SEW = 0.02
 
