@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Typography } from '@/components/ui/typography'
 import { ApiRequestError } from '@/lib/api'
 import { fabricDensityLabel, fabricTypeKey, formatFabricLabel, groupFabricsByType } from '@/lib/fabric'
+import { cheapestSupplierFor, pickSupplierFor, type SupplierPickMode } from '@/lib/supplier'
 import { useAuth } from '@/lib/use-auth'
 
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
@@ -95,9 +96,11 @@ function CalculatorInner() {
   const [defectPct, setDefectPct] = useState(0.05)
   const [currency, setCurrency] = useState<'RUB' | 'USD'>('RUB')
   const [fxRate, setFxRate] = useState(95)
+  const [supplierMode, setSupplierMode] = useState<SupplierPickMode>('cheapest')
 
   const skus = skusQuery.data ?? []
   const supplierFabrics = sfQuery.data ?? []
+  const suppliers = suppliersQuery.data ?? []
 
   const fabricById = useMemo(() => new Map((fabricsQuery.data ?? []).map((f) => [f.id, f])), [fabricsQuery.data])
   const supplierName = useMemo(
@@ -122,20 +125,48 @@ function CalculatorInner() {
     const nextSelections: Record<string, Selection> = {}
     for (const c of sku?.passport?.components ?? []) {
       const fabricId = c.allowedFabricIds[0] ?? ''
-      const firstSf = supplierFabrics.find((sf) => sf.fabricId === fabricId)
-      nextSelections[c.id] = { fabricId, supplierId: firstSf?.supplierId ?? '' }
+      nextSelections[c.id] = {
+        fabricId,
+        supplierId: pickSupplierFor(supplierMode, fabricId, supplierFabrics, suppliers, currency, fxRate),
+      }
     }
     setSelections(nextSelections)
     setSizeQ({})
   }
 
   function setComponentFabric(componentId: string, fabricId: string) {
-    const firstSf = supplierFabrics.find((sf) => sf.fabricId === fabricId)
-    setSelections((prev) => ({ ...prev, [componentId]: { fabricId, supplierId: firstSf?.supplierId ?? '' } }))
+    setSelections((prev) => ({
+      ...prev,
+      [componentId]: {
+        fabricId,
+        supplierId: pickSupplierFor(supplierMode, fabricId, supplierFabrics, suppliers, currency, fxRate),
+      },
+    }))
   }
 
+  // A manual supplier choice switches the picker to "Вручную" so it is not re-applied.
   function setComponentSupplier(componentId: string, supplierId: string) {
+    setSupplierMode('manual')
     setSelections((prev) => ({ ...prev, [componentId]: { ...prev[componentId], supplierId } }))
+  }
+
+  // Re-pick the supplier for every component — used when the picker mode, currency or fx changes.
+  function reapplySuppliers(mode: SupplierPickMode, curr: 'RUB' | 'USD', fx: number) {
+    if (mode === 'manual') return
+    setSelections((prev) => {
+      const next = { ...prev }
+      for (const id of Object.keys(prev)) {
+        const fabricId = prev[id]?.fabricId ?? ''
+        if (!fabricId) continue
+        next[id] = { fabricId, supplierId: pickSupplierFor(mode, fabricId, supplierFabrics, suppliers, curr, fx) }
+      }
+      return next
+    })
+  }
+
+  function onChangeSupplierMode(mode: SupplierPickMode) {
+    setSupplierMode(mode)
+    reapplySuppliers(mode, currency, fxRate)
   }
 
   const buildInput = () => ({
@@ -229,9 +260,22 @@ function CalculatorInner() {
               </NativeSelect>
             </Field>
 
+            <Field>
+              <FieldLabel>Подбор поставщика</FieldLabel>
+              <NativeSelect
+                value={supplierMode}
+                onChange={(e) => onChangeSupplierMode(e.target.value as SupplierPickMode)}
+              >
+                <NativeSelectOption value="cheapest">Автоматически — дешевле</NativeSelectOption>
+                <NativeSelectOption value="fastest">Автоматически — быстрее</NativeSelectOption>
+                <NativeSelectOption value="manual">Вручную</NativeSelectOption>
+              </NativeSelect>
+            </Field>
+
             {components.map((c) => {
               const sel = selections[c.id]
               const sfList = suppliersForFabric(sel?.fabricId ?? '')
+              const cheapestId = cheapestSupplierFor(sel?.fabricId ?? '', supplierFabrics, currency, fxRate)
               const allowedFabrics = c.allowedFabricIds
                 .map((fid) => fabricById.get(fid))
                 .filter((f): f is FabricDto => Boolean(f))
@@ -297,6 +341,21 @@ function CalculatorInner() {
                       </NativeSelect>
                     </Field>
                   </div>
+                  {sfList.length > 1 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {sfList.map((sf) => {
+                        const isCheapest = sf.supplierId === cheapestId
+                        const priceLabel =
+                          currency === 'RUB' ? `${sf.priceRub ?? '—'} ₽` : `${sf.priceUsd ?? '—'} $`
+                        return (
+                          <Badge key={sf.id} variant={isCheapest ? 'success' : 'outline'}>
+                            {supplierName.get(sf.supplierId) ?? sf.supplierId} · {priceLabel}/кг
+                            {isCheapest ? ' · дешевле' : ''}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -346,7 +405,14 @@ function CalculatorInner() {
               </Field>
               <Field>
                 <FieldLabel>Валюта</FieldLabel>
-                <NativeSelect value={currency} onChange={(e) => setCurrency(e.target.value as 'RUB' | 'USD')}>
+                <NativeSelect
+                  value={currency}
+                  onChange={(e) => {
+                    const next = e.target.value as 'RUB' | 'USD'
+                    setCurrency(next)
+                    reapplySuppliers(supplierMode, next, fxRate)
+                  }}
+                >
                   <NativeSelectOption value="RUB">₽ (рубли)</NativeSelectOption>
                   <NativeSelectOption value="USD">$ × курс</NativeSelectOption>
                 </NativeSelect>
@@ -354,7 +420,16 @@ function CalculatorInner() {
               {currency === 'USD' && (
                 <Field>
                   <FieldLabel>Курс $ → ₽</FieldLabel>
-                  <Input type="number" min={0} value={fxRate} onChange={(e) => setFxRate(Number(e.target.value))} />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={fxRate}
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
+                      setFxRate(next)
+                      reapplySuppliers(supplierMode, currency, next)
+                    }}
+                  />
                 </Field>
               )}
             </div>
