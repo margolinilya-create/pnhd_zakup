@@ -150,3 +150,30 @@
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* Print: only the supplier purchase request prints (browser → "Save as PDF"). */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #fff;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #purchase-request,
+  #purchase-request * {
+    visibility: visible;
+  }
+  /* Full-page white sheet so app chrome behind it never bleeds onto the page. */
+  #purchase-request {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: #fff;
+  }
+}

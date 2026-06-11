@@ -552,6 +552,12 @@ function CalculatorInner() {
                   </Typography>
                 )}
                 <ResultView result={result} fabricById={fabricById} />
+                <PurchaseRequest
+                  result={result}
+                  selections={selections}
+                  supplierName={supplierName}
+                  fabricById={fabricById}
+                />
               </div>
             ) : (
               <div className="grid gap-3 p-6">
@@ -563,6 +569,170 @@ function CalculatorInner() {
         </Card>
       </div>
     </section>
+  )
+}
+
+type PurchaseLine = {
+  fabricId: string
+  label: string
+  orderQty: number
+  rollUnit: string
+  rollsCount: number
+  rollSize: number
+  pricePerUnit: number
+  priceUnit: string
+  priceCurrency: 'RUB' | 'USD'
+  costRub: number
+}
+type SupplierGroup = { supplierId: string; supplierName: string; lines: PurchaseLine[]; subtotalRub: number }
+
+// Regroup the engine result (keyed by fabric) into a per-supplier purchase request:
+// what to order from each supplier, with line costs and a subtotal. The fabric→supplier
+// mapping comes from the calculator selections.
+function buildPurchaseRequest(
+  result: CalcResult,
+  selections: Record<string, Selection>,
+  supplierName: Map<string, string>,
+  fabricById: Map<string, FabricDto>,
+): SupplierGroup[] {
+  const fabricToSupplier = new Map<string, string>()
+  for (const sel of Object.values(selections)) {
+    if (sel.fabricId && !fabricToSupplier.has(sel.fabricId)) fabricToSupplier.set(sel.fabricId, sel.supplierId)
+  }
+  const bySupplier = new Map<string, SupplierGroup>()
+  for (const f of result.fabrics) {
+    const supplierId = fabricToSupplier.get(f.fabricId) ?? ''
+    let group = bySupplier.get(supplierId)
+    if (!group) {
+      group = { supplierId, supplierName: supplierName.get(supplierId) ?? 'Поставщик не выбран', lines: [], subtotalRub: 0 }
+      bySupplier.set(supplierId, group)
+    }
+    group.lines.push({
+      fabricId: f.fabricId,
+      label: formatFabricLabel(fabricById.get(f.fabricId)) || f.fabricName || f.fabricId,
+      orderQty: f.orderQty,
+      rollUnit: f.rollUnit,
+      rollsCount: f.rollsCount,
+      rollSize: f.rollSize,
+      pricePerUnit: f.pricePerUnit,
+      priceUnit: f.priceUnit,
+      priceCurrency: f.priceCurrency,
+      costRub: f.costRub,
+    })
+    group.subtotalRub += f.costRub
+  }
+  return [...bySupplier.values()]
+}
+
+const unitRu = (u: string) => (u === 'kg' ? 'кг' : 'м')
+const curSign = (c: 'RUB' | 'USD') => (c === 'RUB' ? '₽' : '$')
+
+function purchaseRequestText(groups: SupplierGroup[], totalRub: number): string {
+  const out: string[] = ['Заявка поставщикам', '']
+  for (const g of groups) {
+    out.push(g.supplierName)
+    for (const l of g.lines) {
+      out.push(
+        `- ${l.label}: ${fmt(l.orderQty, 0)} ${l.rollUnit} × ${fmt(l.pricePerUnit, 2)} ${curSign(l.priceCurrency)}/${unitRu(l.priceUnit)} = ${money(l.costRub)} ₽`,
+      )
+    }
+    out.push(`Итого по поставщику: ${money(g.subtotalRub)} ₽`, '')
+  }
+  out.push(`Всего к закупке: ${money(totalRub)} ₽`)
+  return out.join('\n')
+}
+
+// Per-supplier purchase request the buyer can print (browser → Save as PDF) or copy.
+function PurchaseRequest({
+  result,
+  selections,
+  supplierName,
+  fabricById,
+}: {
+  result: CalcResult
+  selections: Record<string, Selection>
+  supplierName: Map<string, string>
+  fabricById: Map<string, FabricDto>
+}) {
+  const groups = buildPurchaseRequest(result, selections, supplierName, fabricById)
+  if (groups.length === 0) return null
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(purchaseRequestText(groups, result.totalCostRub))
+      toast.success('Заявка скопирована')
+    } catch {
+      toast.error('Не удалось скопировать')
+    }
+  }
+
+  return (
+    <div id="purchase-request" className="grid gap-4 rounded-xl border bg-muted/20 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Typography variant="h6" as="h3">
+          Заявка поставщикам
+        </Typography>
+        <div className="flex gap-2 print:hidden">
+          <Button type="button" size="sm" variant="outline" onClick={() => window.print()}>
+            Печать
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={copy}>
+            Копировать
+          </Button>
+        </div>
+      </div>
+      {groups.map((g) => (
+        <div key={g.supplierId || 'none'} className="grid gap-2">
+          <Typography variant="bodySm" tone="primary">
+            {g.supplierName}
+          </Typography>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ткань</TableHead>
+                <TableHead>К закупке</TableHead>
+                <TableHead>Цена</TableHead>
+                <TableHead>Сумма</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {g.lines.map((l) => (
+                <TableRow key={l.fabricId}>
+                  <TableCell className="whitespace-normal">{l.label}</TableCell>
+                  <TableCell>
+                    {fmt(l.orderQty, 0)} {l.rollUnit}
+                    <br />
+                    <Typography variant="bodyXs" as="span" tone="muted">
+                      {l.rollsCount} рул. × {l.rollSize}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {fmt(l.pricePerUnit, 2)} {curSign(l.priceCurrency)}/{unitRu(l.priceUnit)}
+                  </TableCell>
+                  <TableCell>{money(l.costRub)} ₽</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="flex items-baseline justify-between border-t pt-2">
+            <Typography variant="bodySm" tone="muted" as="span">
+              Итого по поставщику
+            </Typography>
+            <Typography variant="bodySm" tone="primary" as="span" className="tnum">
+              {money(g.subtotalRub)} ₽
+            </Typography>
+          </div>
+        </div>
+      ))}
+      <div className="flex items-baseline justify-between border-t pt-2">
+        <Typography variant="bodySm" as="span">
+          Всего к закупке
+        </Typography>
+        <Typography variant="bodySm" tone="primary" as="span" className="tnum">
+          {money(result.totalCostRub)} ₽
+        </Typography>
+      </div>
+    </div>
   )
 }
 
